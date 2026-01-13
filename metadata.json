@@ -1,5 +1,5 @@
 {
-  "name": "CombinatoriaMaster AI",
-  "description": "An adaptive learning platform for Combinatorics using Bayesian Knowledge Tracing (BKT) and Gemini AI to generate problems from basic principles to Math Olympiad levels.",
+  "name": "Plataforma de Estudos",
+  "description": "Uma plataforma de ensino adaptativo multi-disciplinar.",
   "requestFramePermissions": []
 }
