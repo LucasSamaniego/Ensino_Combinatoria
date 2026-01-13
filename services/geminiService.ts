@@ -23,8 +23,6 @@ export const generateTheory = async (
     
     JSON Output: { title, content, example, visualization }
   `;
-  // ... (Implementation kept simple or reused from previous logic if strictly needed, 
-  // but we focus on micro-theory in generateProblem now)
   try {
      const response = await ai.models.generateContent({
       model: MODEL_FLASH,
@@ -138,7 +136,7 @@ export const generateProblem = async (
       correctAnswer: data.correctAnswer,
       explanation: data.explanation,
       visualization: data.visualization,
-      hints: data.hints,
+      hints: data.hints || [], // Ensure array
       miniTheory: data.miniTheory
     };
 
@@ -199,6 +197,8 @@ export const generatePlacementQuestions = async (): Promise<Question[]> => {
     });
     
     const questions = JSON.parse(response.text || '[]');
+    if (!Array.isArray(questions)) return []; // Safety check
+    
     return questions.map((q: any, index: number) => ({
       ...q,
       id: `placement-${index}`,
@@ -216,15 +216,21 @@ export const generatePlacementQuestions = async (): Promise<Question[]> => {
 }
 
 // --- Reports ---
-// (Mantendo a função generateFeedbackReport existente...)
+
 export const generateFeedbackReport = async (
   history: Interaction[],
   role: 'student' | 'teacher'
 ): Promise<ReportData> => {
-  // ... (same as before)
-  if (history.length === 0) return {
-    summary: "Sem dados.", strengths: [], weaknesses: [], recommendedFocus: "", role, knowledgeGraph: {nodes:[], edges:[]}
+  const emptyReport: ReportData = {
+    summary: "Ainda não há dados suficientes.",
+    strengths: [],
+    weaknesses: [],
+    recommendedFocus: "Pratique mais.",
+    role,
+    knowledgeGraph: { nodes: [], edges: [] }
   };
+
+  if (history.length === 0) return emptyReport;
   
   const historyStr = history.slice(-20).map(h => 
     `[${h.difficulty}] ${h.topicId}: ${h.isCorrect ? 'Acertou' : 'Errou'}`
@@ -236,6 +242,22 @@ export const generateFeedbackReport = async (
     const response = await ai.models.generateContent({
       model: MODEL_FLASH, contents: prompt, config: { responseMimeType: "application/json" } 
     });
-    return { ...JSON.parse(response.text || '{}'), role };
-  } catch(e) { return { summary: "Erro", strengths: [], weaknesses: [], recommendedFocus: "", role, knowledgeGraph: {nodes:[], edges:[]} }; }
+    
+    const data = JSON.parse(response.text || '{}');
+    
+    // Safety sanitization
+    return {
+      summary: data.summary || "Sem resumo disponível.",
+      strengths: Array.isArray(data.strengths) ? data.strengths : [],
+      weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : [],
+      recommendedFocus: data.recommendedFocus || "Continuar praticando.",
+      role,
+      knowledgeGraph: {
+        nodes: Array.isArray(data.knowledgeGraph?.nodes) ? data.knowledgeGraph.nodes : [],
+        edges: Array.isArray(data.knowledgeGraph?.edges) ? data.knowledgeGraph.edges : []
+      }
+    };
+  } catch(e) { 
+    return emptyReport; 
+  }
 };

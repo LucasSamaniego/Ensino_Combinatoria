@@ -10,6 +10,9 @@ const Illustration: React.FC<IllustrationProps> = ({ data }) => {
 
   const { type, data: params, label } = data;
 
+  // Guard against undefined parameters
+  if (!params) return null;
+
   // --- Renderers for specific types ---
 
   // 1. Slots (Principles of Counting, Permutations, Digits)

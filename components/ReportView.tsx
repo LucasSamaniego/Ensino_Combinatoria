@@ -78,7 +78,7 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
         <div className="space-y-8">
           
           {/* Grafo de Conhecimento Section */}
-          {report.knowledgeGraph && report.knowledgeGraph.nodes.length > 0 && (
+          {report.knowledgeGraph && report.knowledgeGraph.nodes && report.knowledgeGraph.nodes.length > 0 && (
             <div className="bg-slate-900 rounded-xl p-6 shadow-inner overflow-hidden relative">
               <div className="flex justify-between items-center mb-4 text-slate-300">
                 <h3 className="flex items-center gap-2 font-bold text-white">
@@ -94,9 +94,9 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
               <div className="w-full h-64 md:h-80 bg-slate-800/50 rounded-lg relative border border-slate-700">
                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute top-0 left-0 w-full h-full">
                     {/* Edges */}
-                    {report.knowledgeGraph.edges.map((edge, i) => {
-                       const fromNode = report.knowledgeGraph.nodes.find(n => n.id === edge.from);
-                       const toNode = report.knowledgeGraph.nodes.find(n => n.id === edge.to);
+                    {report.knowledgeGraph.edges?.map((edge, i) => {
+                       const fromNode = report.knowledgeGraph.nodes?.find(n => n.id === edge.from);
+                       const toNode = report.knowledgeGraph.nodes?.find(n => n.id === edge.to);
                        if (!fromNode || !toNode) return null;
                        return (
                          <line 
@@ -113,7 +113,7 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
                     })}
                     
                     {/* Nodes */}
-                    {report.knowledgeGraph.nodes.map((node: GraphNode) => (
+                    {report.knowledgeGraph.nodes?.map((node: GraphNode) => (
                       <g key={node.id} className="cursor-default">
                         <circle 
                           cx={node.x} 
@@ -162,7 +162,7 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
                    <CheckCircle2 className="w-4 h-4 text-green-500"/> Pontos Fortes
                  </h3>
                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                   {report.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                   {report.strengths?.map((s, i) => <li key={i}>{s}</li>) || <li>Sem dados</li>}
                  </ul>
               </div>
 
@@ -171,7 +171,7 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
                    <AlertTriangle className="w-4 h-4 text-amber-500"/> Pontos de Atenção
                  </h3>
                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                   {report.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                   {report.weaknesses?.map((w, i) => <li key={i}>{w}</li>) || <li>Sem dados</li>}
                  </ul>
               </div>
               

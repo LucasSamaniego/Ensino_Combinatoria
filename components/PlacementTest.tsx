@@ -22,7 +22,7 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ onComplete }) => {
   const loadTest = async () => {
     setLoading(true);
     const qs = await generatePlacementQuestions();
-    setQuestions(qs);
+    setQuestions(qs || []);
     setLoading(false);
   };
 
@@ -46,7 +46,7 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ onComplete }) => {
     setResults(newResults);
     setSelectedOption(null);
 
-    if (currentIndex < questions.length - 1) {
+    if (questions && currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
     } else {
       // Finished
@@ -64,7 +64,7 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ onComplete }) => {
     );
   }
 
-  if (questions.length === 0) return <div>Erro ao carregar teste. Recarregue a página.</div>;
+  if (!questions || questions.length === 0) return <div>Erro ao carregar teste. Recarregue a página.</div>;
 
   const currentQ = questions[currentIndex];
 

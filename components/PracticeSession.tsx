@@ -63,6 +63,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   };
 
   const loadProblem = async (subSkill: {id: string, name: string}) => {
+    if (!subSkill) return; // Guard
     setLoading(true);
     setQuestion(null);
     setFeedback(null);
@@ -306,7 +307,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                </button>
 
                <button 
-                 onClick={() => setHintsRevealed(prev => Math.min(prev + 1, question?.hints?.length || 0))}
+                 onClick={() => setHintsRevealed(prev => Math.min(prev + 1, (question?.hints?.length || 0)))}
                  disabled={!question || !question.hints || hintsRevealed >= question.hints.length || feedback !== null}
                  className="w-full flex items-center justify-between p-3 rounded-lg bg-indigo-800 hover:bg-indigo-700 transition-colors border border-indigo-700 disabled:opacity-50"
                >
