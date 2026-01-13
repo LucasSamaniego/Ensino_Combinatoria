@@ -1,3 +1,4 @@
+
 export enum Difficulty {
   BASIC = 'Basic',
   INTERMEDIATE = 'Intermediate',
@@ -12,6 +13,13 @@ export enum TopicId {
   ADVANCED_COUNTING = 'advanced_counting',
   BINOMIAL_NUMBERS = 'binomial_numbers',
   PROBABILITY = 'probability'
+}
+
+export interface UserProfile {
+  uid: string;
+  name: string;
+  email: string;
+  photoURL?: string;
 }
 
 export interface SubSkill {

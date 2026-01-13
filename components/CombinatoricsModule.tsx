@@ -1,19 +1,19 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   UserProgress, 
   TopicId, 
-  SkillState,
   Interaction,
-  SimulationConfig,
-  Flashcard
+  SimulationConfig
 } from '../types';
 import { 
-  TOPICS_DATA, 
-  DEFAULT_BKT_PARAMS 
+  TOPICS_DATA
 } from '../constants';
 import { updateHierarchicalKnowledge } from '../services/tracingService';
 import { generateFlashcards } from '../services/geminiService';
 import { getCardsDue, calculateNextReview, ReviewGrade } from '../services/srsService';
+import { loadUserProgress, saveUserProgress, getEmptyProgress } from '../services/storageService';
+import { useAuth } from '../contexts/AuthContext';
 
 import SkillCard from './SkillCard';
 import PracticeSession from './PracticeSession';
@@ -23,59 +23,50 @@ import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
 
-import { LayoutDashboard, Target, BarChart2, Brain, Sparkles, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Target, BarChart2, Brain, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
   onExit: () => void;
 }
 
 const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => {
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('placement');
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('dashboard');
+  
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
   
-  // Initialize user progress
-  const [progress, setProgress] = useState<UserProgress>(() => {
-    const skills: { [key: string]: SkillState } = {};
-    
-    // Initialize all skills at basic level
-    TOPICS_DATA.forEach(t => {
-      skills[t.id] = {
-        id: t.id,
-        name: t.name,
-        isParent: true,
-        masteryProbability: DEFAULT_BKT_PARAMS.p_init, // Starts low
-        totalAttempts: 0,
-        correctStreak: 0,
-        averageResponseTime: 0,
-        subSkillIds: t.subSkills.map(s => s.id)
-      };
+  // Initialize state with empty structure, will populate via useEffect
+  const [progress, setProgress] = useState<UserProgress>(getEmptyProgress());
 
-      t.subSkills.forEach(sub => {
-        skills[sub.id] = {
-          id: sub.id,
-          name: sub.name,
-          isParent: false,
-          masteryProbability: DEFAULT_BKT_PARAMS.p_init,
-          totalAttempts: 0,
-          correctStreak: 0,
-          averageResponseTime: 0
-        };
-      });
-    });
+  // 1. Load Data on Mount
+  useEffect(() => {
+    if (user) {
+      setLoading(true);
+      const data = loadUserProgress(user.uid);
+      setProgress(data);
+      
+      // Determine initial view based on data
+      if (!data.hasCompletedPlacement) {
+        setView('placement');
+      } else {
+        setView('dashboard');
+      }
+      setLoading(false);
+    }
+  }, [user]);
 
-    return { 
-      hasCompletedPlacement: false,
-      skills, 
-      history: [],
-      flashcards: [] // Init empty deck
-    };
-  });
+  // 2. Save Data on Change
+  useEffect(() => {
+    if (user && !loading) {
+      saveUserProgress(user.uid, progress);
+    }
+  }, [progress, user, loading]);
 
   // Load initial flashcards for basic topics if empty (Simulation)
   useEffect(() => {
-    if (progress.hasCompletedPlacement && progress.flashcards.length === 0) {
-      // Lazy load intro flashcards
+    if (!loading && progress.hasCompletedPlacement && progress.flashcards.length === 0) {
       generateFlashcards(TopicId.INTRO_COUNTING).then(cards => {
         if (cards.length > 0) {
           setProgress(prev => ({
@@ -85,16 +76,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
         }
       });
     }
-  }, [progress.hasCompletedPlacement]);
-
-  // Check if placement is needed on mount (mock check logic for this demo)
-  React.useEffect(() => {
-    if (!progress.hasCompletedPlacement) {
-      setView('placement');
-    } else {
-      setView('dashboard');
-    }
-  }, [progress.hasCompletedPlacement]);
+  }, [progress.hasCompletedPlacement, loading, progress.flashcards.length]);
 
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
@@ -118,8 +100,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
 
   const handleTopicSelect = async (id: TopicId) => {
     setActiveTopic(id);
-    
-    // Check if we have flashcards for this topic, if not, generate them silently
     const hasCards = progress.flashcards.some(c => c.topicId === id);
     if (!hasCards) {
       generateFlashcards(id).then(newCards => {
@@ -129,13 +109,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
         }));
       });
     }
-
     setView('practice');
   };
 
   const handleInteractionComplete = (interaction: Interaction) => {
     setProgress(prev => {
-      const newSkills = updateHierarchicalKnowledge(prev.skills, interaction, DEFAULT_BKT_PARAMS);
+      const newSkills = updateHierarchicalKnowledge(prev.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
       const newHistory = [...prev.history, interaction];
       return { ...prev, skills: newSkills, history: newHistory };
     });
@@ -154,7 +133,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
     setActiveSimulation(null);
   };
 
-  // SRS Handlers
   const handleCardReview = (cardId: string, grade: ReviewGrade) => {
     setProgress(prev => {
       const newDeck = prev.flashcards.map(card => {
@@ -167,11 +145,17 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
     });
   };
 
-  const dueCards = getCardsDue(progress.flashcards);
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-slate-600">Sincronizando seu perfil...</p>
+      </div>
+    );
+  }
 
-  const getCurrentTopicData = () => {
-    return TOPICS_DATA.find(t => t.id === activeTopic);
-  };
+  const dueCards = getCardsDue(progress.flashcards);
+  const getCurrentTopicData = () => TOPICS_DATA.find(t => t.id === activeTopic);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 animate-in fade-in duration-300">

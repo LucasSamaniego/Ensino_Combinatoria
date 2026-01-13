@@ -1,11 +1,24 @@
+
 import React, { useState } from 'react';
-import { BookOpen, Calculator, Beaker, Globe, Landmark, ChevronRight, Lock } from 'lucide-react';
+import { BookOpen, Calculator, Beaker, Globe, Landmark, ChevronRight, Lock, LogOut } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
+import LoginScreen from './components/LoginScreen';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 type ViewState = 'hub' | 'subject_math' | 'module_combinatorics';
 
-const App: React.FC = () => {
+// Componente interno para acessar o hook useAuth (que deve estar dentro do Provider)
+const MainApp: React.FC = () => {
+  const { user, loading, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>('hub');
+
+  // Loading Screen inicial
+  if (loading) return <div className="min-h-screen bg-slate-50"></div>;
+
+  // Se não estiver logado, mostra Login
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   // --- Views ---
 
@@ -14,7 +27,7 @@ const App: React.FC = () => {
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">Plataforma de Estudos</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          Selecione uma disciplina para acessar materiais adaptativos, simulados inteligentes e acompanhamento de desempenho.
+          Olá, <span className="text-indigo-600 font-bold">{user.name.split(' ')[0]}</span>. Selecione uma disciplina para acessar materiais adaptativos e retomar seu progresso.
         </p>
       </div>
 
@@ -146,9 +159,23 @@ const App: React.FC = () => {
                  <span>Plataforma de <span className="text-indigo-600">Estudos</span></span>
               </div>
               <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
-                 <span className="hidden md:inline hover:text-indigo-600 cursor-pointer">Meus Cursos</span>
-                 <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
-                    <span className="text-xs font-bold">US</span>
+                 {/* User Profile Info */}
+                 <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
+                    <span className="hidden sm:inline font-bold text-slate-700">{user.name}</span>
+                    <button 
+                      onClick={signOut}
+                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                      title="Sair da Conta"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.name} className="w-8 h-8 rounded-full border border-slate-200" />
+                    ) : (
+                      <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">
+                        {user.name.charAt(0)}
+                      </div>
+                    )}
                  </div>
               </div>
            </div>
@@ -161,6 +188,15 @@ const App: React.FC = () => {
         <CombinatoricsModule onExit={() => setCurrentView('subject_math')} />
       )}
     </div>
+  );
+};
+
+// Root App Wrapper
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 };
 
