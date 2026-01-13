@@ -3,7 +3,8 @@ import {
   UserProgress, 
   TopicId, 
   SkillState,
-  Interaction 
+  Interaction,
+  SimulationConfig
 } from './types';
 import { 
   TOPICS_DATA, 
@@ -14,10 +15,14 @@ import SkillCard from './components/SkillCard';
 import PracticeSession from './components/PracticeSession';
 import ReportView from './components/ReportView';
 import PlacementTest from './components/PlacementTest';
+import SimulationHub from './components/SimulationHub';
+import SimulationSession from './components/SimulationSession';
+import { LayoutDashboard, Target, BarChart2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement'>('placement');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session'>('placement');
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
+  const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
   
   // Initialize user progress
   const [progress, setProgress] = useState<UserProgress>(() => {
@@ -110,6 +115,21 @@ const App: React.FC = () => {
     });
   };
 
+  const handleSimulationStart = (config: SimulationConfig) => {
+    setActiveSimulation(config);
+    setView('simulation_session');
+  };
+
+  const handleSimulationComplete = (interactions: Interaction[]) => {
+    // Batch update knowledge state based on simulation results
+    interactions.forEach(interaction => {
+      handleInteractionComplete(interaction);
+    });
+    // Return to hub after saving
+    setView('simulations');
+    setActiveSimulation(null);
+  };
+
   const getCurrentTopicData = () => {
     return TOPICS_DATA.find(t => t.id === activeTopic);
   };
@@ -123,16 +143,28 @@ const App: React.FC = () => {
               <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold math-font">
                 C!
               </div>
-              <span className="font-bold text-xl tracking-tight text-slate-800">Combinatoria<span className="text-indigo-600">AI</span></span>
+              <span className="font-bold text-xl tracking-tight text-slate-800 hidden md:block">Combinatoria<span className="text-indigo-600">AI</span></span>
             </div>
             
             {progress.hasCompletedPlacement && (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 md:gap-4">
+                <button 
+                  onClick={() => setView('dashboard')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  <LayoutDashboard className="w-4 h-4" /> <span className="hidden md:inline">Trilha</span>
+                </button>
+                <button 
+                  onClick={() => setView('simulations')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'simulations' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  <Target className="w-4 h-4" /> <span className="hidden md:inline">Simulados</span>
+                </button>
                 <button 
                   onClick={() => setView('report')}
-                  className="text-sm font-medium text-gray-600 hover:text-indigo-600"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'report' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
                 >
-                  Relatórios
+                  <BarChart2 className="w-4 h-4" /> <span className="hidden md:inline">Relatórios</span>
                 </button>
               </div>
             )}
@@ -184,6 +216,18 @@ const App: React.FC = () => {
             userSkills={progress.skills}
             onCompleteQuestion={handleInteractionComplete}
             onBack={() => setView('dashboard')}
+          />
+        )}
+
+        {view === 'simulations' && (
+          <SimulationHub onSelect={handleSimulationStart} />
+        )}
+
+        {view === 'simulation_session' && activeSimulation && (
+          <SimulationSession 
+             config={activeSimulation}
+             onComplete={handleSimulationComplete}
+             onCancel={() => setView('simulations')}
           />
         )}
 

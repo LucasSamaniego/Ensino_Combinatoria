@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent } from '../types';
+import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -214,6 +214,72 @@ export const generatePlacementQuestions = async (): Promise<Question[]> => {
     return [];
   }
 }
+
+// --- Simulation Generation ---
+
+export const generateSimulationQuestions = async (config: SimulationConfig): Promise<Question[]> => {
+  const { style, questionCount, difficulty } = config;
+
+  let stylePrompt = '';
+  switch(style) {
+    case 'Concurso': stylePrompt = 'Estilo Concursos Públicos (FGV, Cesgranrio, Cebraspe). Enunciados contextualizados, foco em PFC e Combinações.'; break;
+    case 'Olympiad': stylePrompt = 'Estilo Olimpíadas de Matemática (OBMEP Nível 2/3, OBM). Questões criativas que exigem raciocínio lógico profundo, não apenas fórmulas.'; break;
+    case 'Military': stylePrompt = 'Estilo Militar de Alta Dificuldade (ITA, IME, AFA, EN). Questões complexas, técnicas avançadas (Lemas de Kaplansky, Inclusão-Exclusão, Funções Geradoras se necessário).'; break;
+    default: stylePrompt = 'Estilo Ensino Médio/ENEM. Aplicação direta de conceitos.';
+  }
+
+  const prompt = `
+    Gere um SIMULADO de Análise Combinatória contendo ${questionCount} questões.
+    ESTILO: ${stylePrompt}
+    DIFICULDADE: ${difficulty}.
+    
+    As questões devem ser variadas dentro da Análise Combinatória.
+    Retorne um ARRAY JSON de objetos. Cada objeto deve conter 'text', 'options' (5 opções A-E), 'correctAnswer' (apenas a letra ou valor), 'explanation', e um 'topicId' aproximado.
+  `;
+
+  const model = style === 'Military' || style === 'Olympiad' ? MODEL_REASONING : MODEL_FLASH;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+             type: Type.OBJECT,
+             properties: {
+               text: { type: Type.STRING },
+               options: { type: Type.ARRAY, items: { type: Type.STRING } },
+               correctAnswer: { type: Type.STRING },
+               explanation: { type: Type.STRING },
+               topicId: { type: Type.STRING }
+             },
+             required: ['text', 'options', 'correctAnswer', 'topicId']
+          }
+        }
+      }
+    });
+    
+    const questions = JSON.parse(response.text || '[]');
+    if (!Array.isArray(questions)) return [];
+
+    return questions.map((q: any, index: number) => ({
+      ...q,
+      id: `sim-${Date.now()}-${index}`,
+      subSkillId: 'simulation',
+      subSkillName: `${style} Simulation`,
+      difficulty: difficulty,
+      hints: [],
+      miniTheory: ''
+    }));
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
 
 // --- Reports ---
 

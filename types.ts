@@ -106,3 +106,12 @@ export interface ReportData {
     edges: GraphEdge[];
   };
 }
+
+export interface SimulationConfig {
+  id: string;
+  title: string;
+  description: string;
+  style: 'School' | 'Concurso' | 'Olympiad' | 'Military'; // Military = ITA/IME/AFA
+  questionCount: number;
+  difficulty: Difficulty;
+}
