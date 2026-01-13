@@ -1,12 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { generateProblem } from '../services/geminiService';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2 } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 
 interface PracticeSessionProps {
+  category: 'math' | 'concursos';
   topicId: TopicId;
   topicName: string;
   topicSubSkills: { id: string, name: string }[];
@@ -16,6 +18,7 @@ interface PracticeSessionProps {
 }
 
 const PracticeSession: React.FC<PracticeSessionProps> = ({ 
+  category,
   topicId, 
   topicName,
   topicSubSkills,
@@ -53,7 +56,6 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
       return masteryA - masteryB;
     });
 
-    // 80% focus on weakest, 20% random for review
     const selected = Math.random() > 0.2 
       ? sortedSubSkills[0] 
       : topicSubSkills[Math.floor(Math.random() * topicSubSkills.length)];
@@ -63,7 +65,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   };
 
   const loadProblem = async (subSkill: {id: string, name: string}) => {
-    if (!subSkill) return; // Guard
+    if (!subSkill) return;
     setLoading(true);
     setQuestion(null);
     setFeedback(null);
@@ -77,6 +79,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
     const difficulty = getDifficultyForMastery(currentMastery);
 
     const newQuestion = await generateProblem(
+      category,
       topicName,
       topicId,
       subSkill.id,
@@ -111,7 +114,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                      normalizedUser.replace('.',',') === normalizedCorrect.replace('.',',');
 
     setFeedback(isCorrect ? 'correct' : 'incorrect');
-    setShowFullExplanation(true); // Always show explanation after answer
+    setShowFullExplanation(true);
     
     const interaction: Interaction = {
       id: crypto.randomUUID(),
@@ -176,6 +179,14 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
               ) : question ? (
                 <div className="animate-in fade-in duration-500">
                    
+                   {/* Banca Identifier for Concursos */}
+                   {question.banca && (
+                     <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Banca: {question.banca}
+                     </div>
+                   )}
+
                    {question.visualization && (
                       <div className="mb-6">
                         <Illustration data={question.visualization} />

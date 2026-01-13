@@ -7,12 +7,23 @@ export enum Difficulty {
 }
 
 export enum TopicId {
+  // Matemática
   INTRO_COUNTING = 'intro_counting',
   PERMUTATIONS = 'permutations',
   COMBINATIONS = 'combinations',
   ADVANCED_COUNTING = 'advanced_counting',
   BINOMIAL_NUMBERS = 'binomial_numbers',
-  PROBABILITY = 'probability'
+  PROBABILITY = 'probability',
+  
+  // Concursos - Direito
+  DIR_ADMINISTRATIVO = 'dir_administrativo',
+  DIR_PENAL = 'dir_penal',
+  DIR_PROC_PENAL = 'dir_proc_penal',
+  DIR_CONSTITUCIONAL = 'dir_constitucional',
+  
+  // Concursos - Geral
+  INFORMATICA = 'informatica',
+  RACIOCINIO_LOGICO = 'raciocinio_logico'
 }
 
 export interface UserProfile {
@@ -29,14 +40,14 @@ export interface SubSkill {
 }
 
 export interface SkillState {
-  id: string; // Can be TopicId or SubSkillId
+  id: string; 
   name: string;
   isParent: boolean;
-  masteryProbability: number; // P(L)
+  masteryProbability: number; 
   totalAttempts: number;
   correctStreak: number;
-  averageResponseTime: number; // in seconds
-  subSkillIds?: string[]; // If parent
+  averageResponseTime: number; 
+  subSkillIds?: string[]; 
 }
 
 export interface Interaction {
@@ -50,8 +61,8 @@ export interface Interaction {
 }
 
 export interface VisualizationData {
-  type: 'venn' | 'slots' | 'circular' | 'urn' | 'graph' | 'none';
-  data: any; // Flexible payload based on type
+  type: 'venn' | 'slots' | 'circular' | 'urn' | 'graph' | 'law_article' | 'flowchart' | 'none';
+  data: any; 
   label?: string;
 }
 
@@ -66,13 +77,14 @@ export interface Question {
   subSkillId: string;
   subSkillName: string;
   visualization?: VisualizationData;
-  hints?: string[];     // Dicas progressivas
-  miniTheory?: string;  // Teoria curta (Just-in-time)
+  hints?: string[];     
+  miniTheory?: string;
+  banca?: string; // Novo: Identifica a banca examinadora (ex: FGV, CESPE)
 }
 
 export interface TheoryContent {
   title: string;
-  content: string; // Markdown/Text explanation with LaTeX
+  content: string; 
   example: string;
   visualization?: VisualizationData;
 }
@@ -84,36 +96,34 @@ export interface BKTParams {
   p_guess: number;
 }
 
-// --- SRS (Spaced Repetition) Types ---
-
 export interface SRSState {
-  interval: number; // Days until next review
-  repetition: number; // Consecutive successful reviews
-  easeFactor: number; // SM-2 Ease Factor (starts at 2.5)
-  nextReviewDate: number; // Timestamp
+  interval: number; 
+  repetition: number; 
+  easeFactor: number; 
+  nextReviewDate: number; 
 }
 
 export interface Flashcard {
   id: string;
   topicId: TopicId;
-  front: string; // Concept / Question
-  back: string; // Definition / Formula / Answer
+  front: string; 
+  back: string; 
   srs: SRSState;
 }
 
 export interface UserProgress {
-  hasCompletedPlacement: boolean; // Flag para teste de nivelamento
-  skills: { [key: string]: SkillState }; // Flattens both Topics and SubSkills for easy access
+  hasCompletedPlacement: boolean; 
+  skills: { [key: string]: SkillState }; 
   history: Interaction[];
-  flashcards: Flashcard[]; // New: Flashcard deck
+  flashcards: Flashcard[]; 
 }
 
 export interface GraphNode {
   id: string;
   label: string;
   status: 'mastered' | 'progress' | 'pending';
-  x: number; // Coordinate 0-100 for visualization
-  y: number; // Coordinate 0-100 for visualization
+  x: number; 
+  y: number; 
 }
 
 export interface GraphEdge {
@@ -137,7 +147,7 @@ export interface SimulationConfig {
   id: string;
   title: string;
   description: string;
-  style: 'School' | 'Concurso' | 'Olympiad' | 'Military'; // Military = ITA/IME/AFA
+  style: 'School' | 'Concurso' | 'Olympiad' | 'Military'; 
   questionCount: number;
   difficulty: Difficulty;
 }

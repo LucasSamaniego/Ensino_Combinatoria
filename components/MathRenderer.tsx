@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 
 // Declare katex on window since we load it via CDN
@@ -33,7 +34,7 @@ const MathRenderer: React.FC<MathRendererProps> = ({ text, className = '' }) => 
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || text === undefined || text === null) return;
 
     if (!katexReady) {
       // Fallback while loading: render plain text
@@ -90,16 +91,12 @@ const MathRenderer: React.FC<MathRendererProps> = ({ text, className = '' }) => 
       }
       
       // --- Heuristic Repair for JSON Parsing Issues ---
-      // When JSON.parse sees "\t", "\f", "\b", etc., it converts them to control characters.
-      // We must restore them to backslash + char to be valid LaTeX commands.
       let cleanLatex = latex
-        .replace(/\t/g, '\\t')       // Restores \times, \tan, \tau
-        .replace(/\f/g, '\\f')       // Restores \frac
-        .replace(/\r/g, '\\r')       // Restores \rho, \right
-        .replace(/[\x08]/g, '\\b')   // Restores \beta, \binom (Backspace char)
-        .replace(/\n/g, '\\n')       // Restores \neq, \newline
-        
-        // Safety Fallbacks for common broken commands if control chars were stripped differently
+        .replace(/\t/g, '\\t')       
+        .replace(/\f/g, '\\f')       
+        .replace(/\r/g, '\\r')       
+        .replace(/[\x08]/g, '\\b')   
+        .replace(/\n/g, '\\n')       
         .replace(/(\s|^)imes(\s|$)/g, '$1\\times$2') 
         .replace(/(\s|^)frac(\{)/g, '$1\\frac$2')
         .replace(/(\s|^)sqrt(\{)/g, '$1\\sqrt$2')
@@ -113,12 +110,10 @@ const MathRenderer: React.FC<MathRendererProps> = ({ text, className = '' }) => 
         window.katex.render(cleanLatex, span, {
           throwOnError: false, 
           displayMode: displayMode,
-          errorColor: '#ef4444', // Red color for standard KaTeX parse errors (syntax errors)
+          errorColor: '#ef4444', 
           strict: false
         });
       } catch (e) {
-        // If an exception occurs (e.g. katex crash), fallback to plain text.
-        // DO NOT style as red error to avoid jarring UX.
         span.innerText = latex;
         span.className = "inline-block text-gray-800 font-mono text-sm bg-gray-50 px-1 rounded border border-gray-200";
       }
@@ -126,6 +121,10 @@ const MathRenderer: React.FC<MathRendererProps> = ({ text, className = '' }) => 
     }
 
   }, [text, katexReady]);
+
+  if (text === undefined || text === null) {
+    return null;
+  }
 
   return <div ref={containerRef} className={`text-gray-800 leading-relaxed ${className}`} />;
 };

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard } from '../types';
 import { getInitialSRSState } from './srsService';
@@ -10,42 +11,11 @@ const MODEL_REASONING = 'gemini-3-pro-preview';
 const LATEX_INSTRUCTION = `
     IMPORTANTE SOBRE JSON E LATEX:
     Como sua saída é um JSON, você deve ESCAPAR DUPLAMENTE as barras invertidas do LaTeX.
-    - Errado: "\\times", "\\frac" (O parser JSON vai corromper isso).
-    - Correto: "\\\\times", "\\\\frac", "\\\\{", "\\\\}".
-    Certifique-se de que fórmulas matemáticas (entre $...$) usem duplas barras.
+    - Correto: "\\\\times", "\\\\frac", "\\\\{".
 `;
 
-// --- Theory Generation (Legacy) ---
-
-export const generateTheory = async (
-  topicName: string,
-  subSkillName: string,
-  difficulty: string
-): Promise<TheoryContent> => {
-  const prompt = `
-    Atue como um professor de matemática especialista em olimpíadas.
-    Fonte: Livro do Morgado (Análise Combinatória e Probabilidade).
-    Tópico: "${subSkillName}" (dentro de ${topicName}).
-    
-    Gere uma explicação teórica CURTA e OBJETIVA.
-    Use LaTeX ($...$) para fórmulas.
-    ${LATEX_INSTRUCTION}
-    
-    JSON Output: { title, content, example, visualization }
-  `;
-  try {
-     const response = await ai.models.generateContent({
-      model: MODEL_FLASH,
-      contents: prompt,
-      config: { responseMimeType: "application/json" }
-    });
-    return JSON.parse(response.text || '{}');
-  } catch (e) { return { title: 'Erro', content: '...', example: '...' }; }
-};
-
-// --- Problem Generation (With Just-in-Time Theory) ---
-
 export const generateProblem = async (
+  category: 'math' | 'concursos',
   topicName: string,
   topicId: TopicId,
   subSkillId: string,
@@ -53,43 +23,49 @@ export const generateProblem = async (
   currentDifficulty: string
 ): Promise<Question> => {
   
+  let persona = "";
+  let constraints = "";
+  
+  if (category === 'math') {
+    persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
+    constraints = `
+      - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
+      - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
+      - CONTEÚDO: Exclusivamente Matemática/Combinatória. Proibido qualquer tema de Direito ou Concursos.
+    `;
+  } else {
+    persona = "Você é um especialista em Concursos Públicos de alto nível (Juiz, Auditor, Delegado).";
+    constraints = `
+      - FOCO: Questões reais de bancas examinadoras (FGV, CESPE/Cebraspe, FCC, Vunesp).
+      - REGRAS: Você DEVE incluir o nome da banca no campo "banca".
+      - CONTEÚDO: Exclusivamente o tópico de Direito ou Raciocínio Lógico solicitado. Proibido temas acadêmicos de olimpíadas de matemática.
+      - ESTILO: Formal e técnico conforme a jurisprudência e doutrina dominante.
+    `;
+  }
+
   const modelName = (currentDifficulty === Difficulty.OLYMPIAD || currentDifficulty === Difficulty.ADVANCED) 
     ? MODEL_REASONING 
     : MODEL_FLASH;
 
   const prompt = `
-    Crie um problema de Análise Combinatória.
-    Fonte: Livro do Morgado.
+    ${persona}
     
     Tópico: ${topicName} > ${subSkillName}.
     Dificuldade: ${currentDifficulty}.
     
-    REQUISITOS ESPECIAIS (JUST-IN-TIME LEARNING):
-    1. O aluno receberá apenas a questão.
-    2. Ele pode pedir "Dicas" ou "Teoria Rápida" se travar.
-    3. Gere 2 dicas progressivas (sem dar a resposta).
-    4. Gere uma "miniTheory": Um parágrafo curto (max 3 linhas) explicando O CONCEITO CHAVE necessário para resolver ESTA questão específica. Não dê uma aula inteira, apenas a ferramenta necessária.
-
-    FORMATAÇÃO:
-    - Use LaTeX ($...$) para matemática.
+    ${constraints}
     ${LATEX_INSTRUCTION}
-    
-    VISUALIZAÇÃO:
-    - 'slots': Princípio multiplicativo, placas, senhas.
-    - 'circular': Mesa redonda, colar.
-    - 'venn': Conjuntos.
-    - 'urn': Bolas, sorteio.
-    - 'none': Outros.
 
-    Estruture JSON:
+    Retorne APENAS o JSON no esquema:
     {
-      "text": "Enunciado com $math$...",
-      "options": ["A", "B", "C", "D"] (null se Advanced/Olympiad),
-      "correctAnswer": "Resposta final",
-      "explanation": "Resolução completa",
-      "hints": ["Dica 1...", "Dica 2..."],
-      "miniTheory": "Resumo do conceito chave...",
-      "visualization": { "type": "...", "data": {...}, "label": "..." }
+      "text": "Enunciado da questão...",
+      "options": ["A", "B", "C", "D", "E"],
+      "correctAnswer": "A opção exata",
+      "explanation": "Resolução detalhada...",
+      "hints": ["Dica 1", "Dica 2"],
+      "miniTheory": "Breve base teórica...",
+      "banca": "Nome da Banca (ex: FGV 2024) - Obrigatorio se for concurso",
+      "visualization": { "type": "slots|circular|venn|urn|none", "data": {...}, "label": "..." }
     }
   `;
 
@@ -103,15 +79,16 @@ export const generateProblem = async (
           type: Type.OBJECT,
           properties: {
             text: { type: Type.STRING },
-            options: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
             correctAnswer: { type: Type.STRING },
             explanation: { type: Type.STRING },
             hints: { type: Type.ARRAY, items: { type: Type.STRING } },
             miniTheory: { type: Type.STRING },
+            banca: { type: Type.STRING, nullable: true },
             visualization: {
               type: Type.OBJECT,
               properties: {
-                type: { type: Type.STRING, enum: ['slots', 'circular', 'venn', 'urn', 'graph', 'none'] },
+                type: { type: Type.STRING },
                 data: { 
                   type: Type.OBJECT,
                   properties: {
@@ -121,15 +98,14 @@ export const generateProblem = async (
                     labels: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
                     sets: { type: Type.NUMBER, nullable: true },
                     balls: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true }
-                  },
-                  nullable: true
+                  }
                 },
                 label: { type: Type.STRING, nullable: true }
               },
               required: ['type']
             }
           },
-          required: ["text", "correctAnswer", "explanation", "hints", "miniTheory"]
+          required: ["text", "options", "correctAnswer", "explanation", "hints", "miniTheory", "visualization"]
         }
       }
     });
@@ -147,10 +123,10 @@ export const generateProblem = async (
       correctAnswer: data.correctAnswer,
       explanation: data.explanation,
       visualization: data.visualization,
-      hints: data.hints || [], // Ensure array
-      miniTheory: data.miniTheory
+      hints: data.hints || [],
+      miniTheory: data.miniTheory,
+      banca: data.banca
     };
-
   } catch (error) {
     console.error("Gemini Error:", error);
     return {
@@ -159,31 +135,31 @@ export const generateProblem = async (
       subSkillId,
       subSkillName,
       difficulty: Difficulty.BASIC,
-      text: `Erro na IA. Resolva: $3!$`,
-      options: ['3', '6', '9', '12'],
-      correctAnswer: '6',
-      explanation: '$3! = 3 \\times 2 \\times 1 = 6$',
-      miniTheory: 'Fatorial de n é o produto de 1 até n.',
-      hints: ['Multiplique 3 * 2 * 1']
+      text: "Erro ao gerar questão. Por favor, tente novamente.",
+      options: ["-", "-", "-", "-"],
+      correctAnswer: "-",
+      explanation: "Erro técnico de conexão com a IA.",
+      banca: "Sistema"
     };
   }
 };
 
-// --- Placement Test Generation ---
+export const generatePlacementQuestions = async (category: 'math' | 'concursos'): Promise<Question[]> => {
+  const persona = category === 'math' 
+    ? "Professor Morgado (Matemática Pura)" 
+    : "Especialista em Bancas de Concursos (FGV/CESPE)";
+    
+  const contentFilter = category === 'math'
+    ? "Gere 4 questões apenas de Análise Combinatória e PFC."
+    : "Gere 4 questões de Direito (Adm, Const, Penal) e Raciocínio Lógico de provas reais.";
 
-export const generatePlacementQuestions = async (): Promise<Question[]> => {
   const prompt = `
-    Crie um Teste de Nivelamento (Diagnostic Test) de Análise Combinatória.
-    Gere 3 questões cobrindo níveis diferentes para identificar a proficiência do aluno.
+    Crie um Teste de Nivelamento para a área de ${category}.
+    Estilo: ${persona}.
+    ${contentFilter}
     
-    1. Questão Básica: Princípio Fundamental da Contagem (PFC).
-    2. Questão Intermediária: Combinação Simples vs Arranjo.
-    3. Questão Avançada: Permutação com Repetição ou Circular.
-    
+    ${category === 'concursos' ? 'Identifique a banca de cada questão.' : ''}
     ${LATEX_INSTRUCTION}
-
-    Retorne um ARRAY JSON com 3 objetos de questão completos (text, options, correctAnswer, topicId correspondente).
-    Para 'topicId', use: 'intro_counting', 'combinations', ou 'permutations'.
   `;
 
   try {
@@ -193,92 +169,74 @@ export const generatePlacementQuestions = async (): Promise<Question[]> => {
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
-          items: {
-             type: Type.OBJECT,
-             properties: {
-               text: { type: Type.STRING },
-               options: { type: Type.ARRAY, items: { type: Type.STRING } },
-               correctAnswer: { type: Type.STRING },
-               explanation: { type: Type.STRING },
-               topicId: { type: Type.STRING }
-             },
-             required: ['text', 'options', 'correctAnswer', 'topicId']
-          }
+          type: Type.OBJECT,
+          properties: {
+            questions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  text: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctAnswer: { type: Type.STRING },
+                  topicId: { type: Type.STRING },
+                  explanation: { type: Type.STRING },
+                  banca: { type: Type.STRING, nullable: true }
+                },
+                required: ["text", "options", "correctAnswer", "topicId", "explanation"]
+              }
+            }
+          },
+          required: ["questions"]
         }
       }
     });
     
-    const questions = JSON.parse(response.text || '[]');
-    if (!Array.isArray(questions)) return []; // Safety check
+    const text = response.text || '{"questions": []}';
+    const data = JSON.parse(text);
     
-    return questions.map((q: any, index: number) => ({
+    return data.questions.map((q: any, index: number) => ({
       ...q,
-      id: `placement-${index}`,
+      id: `placement-${index}-${Date.now()}`,
       subSkillId: 'diagnostic',
-      subSkillName: 'Diagnóstico',
-      difficulty: Difficulty.INTERMEDIATE, // Standard for placement
+      subSkillName: 'Diagnóstico Inicial',
+      difficulty: Difficulty.INTERMEDIATE,
       hints: [],
-      miniTheory: ''
+      miniTheory: 'Fase de nivelamento.'
     }));
-
   } catch (e) {
-    console.error(e);
     return [];
   }
 }
 
-// --- Simulation Generation ---
-
 export const generateSimulationQuestions = async (config: SimulationConfig): Promise<Question[]> => {
   const { style, questionCount, difficulty } = config;
-
-  let stylePrompt = '';
-  switch(style) {
-    case 'Concurso': stylePrompt = 'Estilo Concursos Públicos (FGV, Cesgranrio, Cebraspe). Enunciados contextualizados, foco em PFC e Combinações.'; break;
-    case 'Olympiad': stylePrompt = 'Estilo Olimpíadas de Matemática (OBMEP Nível 2/3, OBM). Questões criativas que exigem raciocínio lógico profundo, não apenas fórmulas.'; break;
-    case 'Military': stylePrompt = 'Estilo Militar de Alta Dificuldade (ITA, IME, AFA, EN). Questões complexas, técnicas avançadas (Lemas de Kaplansky, Inclusão-Exclusão, Funções Geradoras se necessário).'; break;
-    default: stylePrompt = 'Estilo Ensino Médio/ENEM. Aplicação direta de conceitos.';
-  }
-
-  const prompt = `
-    Gere um SIMULADO de Análise Combinatória contendo ${questionCount} questões.
-    ESTILO: ${stylePrompt}
-    DIFICULDADE: ${difficulty}.
-    ${LATEX_INSTRUCTION}
-    
-    As questões devem ser variadas dentro da Análise Combinatória.
-    Retorne um ARRAY JSON de objetos. Cada objeto deve conter 'text', 'options' (5 opções A-E), 'correctAnswer' (apenas a letra ou valor), 'explanation', e um 'topicId' aproximado.
-  `;
-
-  const model = style === 'Military' || style === 'Olympiad' ? MODEL_REASONING : MODEL_FLASH;
-
+  const prompt = `Gere um SIMULADO de ${questionCount} questões no estilo ${style} nível ${difficulty}. Se for Concurso, cite bancas como FGV ou CESPE. Retorne JSON Array.`;
+  
   try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: prompt,
-      config: {
+    const response = await ai.models.generateContent({ 
+      model: MODEL_FLASH, 
+      contents: prompt, 
+      config: { 
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
           items: {
-             type: Type.OBJECT,
-             properties: {
-               text: { type: Type.STRING },
-               options: { type: Type.ARRAY, items: { type: Type.STRING } },
-               correctAnswer: { type: Type.STRING },
-               explanation: { type: Type.STRING },
-               topicId: { type: Type.STRING }
-             },
-             required: ['text', 'options', 'correctAnswer', 'topicId']
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswer: { type: Type.STRING },
+              explanation: { type: Type.STRING },
+              topicId: { type: Type.STRING },
+              banca: { type: Type.STRING, nullable: true }
+            }
           }
         }
       }
     });
     
     const questions = JSON.parse(response.text || '[]');
-    if (!Array.isArray(questions)) return [];
-
     return questions.map((q: any, index: number) => ({
       ...q,
       id: `sim-${Date.now()}-${index}`,
@@ -289,109 +247,49 @@ export const generateSimulationQuestions = async (config: SimulationConfig): Pro
       miniTheory: ''
     }));
   } catch (e) {
-    console.error(e);
     return [];
   }
 }
 
-// --- Flashcard Generation ---
-
 export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]> => {
-  const prompt = `
-    Crie 4 Flashcards Conceituais (Active Recall) sobre o tópico de Análise Combinatória: ${topicId}.
-    
-    Foco:
-    1. Fórmulas (sem números, apenas a relação).
-    2. Conceitos chave e definições.
-    3. Gatilhos de decisão (ex: "Quando a ordem importa?").
-    
-    Use LaTeX para matemática.
-    ${LATEX_INSTRUCTION}
-    O 'front' é a pergunta/desafio. O 'back' é a resposta clara.
-    
-    Retorne um Array JSON.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_FLASH,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-           type: Type.ARRAY,
-           items: {
-             type: Type.OBJECT,
-             properties: {
-               front: { type: Type.STRING },
-               back: { type: Type.STRING }
-             },
-             required: ['front', 'back']
-           }
+  const prompt = `Crie 4 Flashcards sobre o tópico ${topicId}. Retorne JSON Array [{front, back}].`;
+  const response = await ai.models.generateContent({ 
+    model: MODEL_FLASH, 
+    contents: prompt, 
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            front: { type: Type.STRING },
+            back: { type: Type.STRING }
+          }
         }
       }
-    });
-
-    const data = JSON.parse(response.text || '[]');
-    if (!Array.isArray(data)) return [];
-
-    return data.map((card: any) => ({
-      id: crypto.randomUUID(),
-      topicId: topicId,
-      front: card.front,
-      back: card.back,
-      srs: getInitialSRSState()
-    }));
-  } catch (e) {
-    console.error("Flashcard Gen Error", e);
-    return [];
-  }
+    }
+  });
+  const data = JSON.parse(response.text || '[]');
+  return data.map((card: any) => ({
+    id: crypto.randomUUID(),
+    topicId,
+    front: card.front,
+    back: card.back,
+    srs: getInitialSRSState()
+  }));
 };
 
-
-// --- Reports ---
-
-export const generateFeedbackReport = async (
-  history: Interaction[],
-  role: 'student' | 'teacher'
-): Promise<ReportData> => {
-  const emptyReport: ReportData = {
-    summary: "Ainda não há dados suficientes.",
-    strengths: [],
-    weaknesses: [],
-    recommendedFocus: "Pratique mais.",
+export const generateFeedbackReport = async (history: Interaction[], role: 'student' | 'teacher'): Promise<ReportData> => {
+  const prompt = `Analise o histórico de estudo. Papel: ${role}. Avalie a proficiência. Retorne JSON {summary, strengths, weaknesses, recommendedFocus, knowledgeGraph}.`;
+  const response = await ai.models.generateContent({ model: MODEL_FLASH, contents: prompt, config: { responseMimeType: "application/json" }});
+  const data = JSON.parse(response.text || '{}');
+  return {
+    summary: data.summary || "Iniciando análise...",
+    strengths: data.strengths || [],
+    weaknesses: data.weaknesses || [],
+    recommendedFocus: data.recommendedFocus || "Continue estudando.",
     role,
-    knowledgeGraph: { nodes: [], edges: [] }
+    knowledgeGraph: data.knowledgeGraph || { nodes: [], edges: [] }
   };
-
-  if (history.length === 0) return emptyReport;
-  
-  const historyStr = history.slice(-20).map(h => 
-    `[${h.difficulty}] ${h.topicId}: ${h.isCorrect ? 'Acertou' : 'Errou'}`
-  ).join('\n');
-
-  const prompt = `Analise este histórico (Morgado). Papel: ${role}. Retorne JSON {summary, strengths, weaknesses, recommendedFocus, knowledgeGraph}.`;
-  
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_FLASH, contents: prompt, config: { responseMimeType: "application/json" } 
-    });
-    
-    const data = JSON.parse(response.text || '{}');
-    
-    // Safety sanitization
-    return {
-      summary: data.summary || "Sem resumo disponível.",
-      strengths: Array.isArray(data.strengths) ? data.strengths : [],
-      weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : [],
-      recommendedFocus: data.recommendedFocus || "Continuar praticando.",
-      role,
-      knowledgeGraph: {
-        nodes: Array.isArray(data.knowledgeGraph?.nodes) ? data.knowledgeGraph.nodes : [],
-        edges: Array.isArray(data.knowledgeGraph?.edges) ? data.knowledgeGraph.edges : []
-      }
-    };
-  } catch(e) { 
-    return emptyReport; 
-  }
 };

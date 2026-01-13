@@ -7,7 +7,8 @@ import {
   SimulationConfig
 } from '../types';
 import { 
-  TOPICS_DATA
+  MATH_TOPICS,
+  CONCURSOS_TOPICS
 } from '../constants';
 import { updateHierarchicalKnowledge } from '../services/tracingService';
 import { generateFlashcards } from '../services/geminiService';
@@ -23,60 +24,48 @@ import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
 
-import { LayoutDashboard, Target, BarChart2, Brain, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Target, BarChart2, Brain, Sparkles, ArrowLeft, Loader2, Book, Scale } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
   onExit: () => void;
+  category: 'math' | 'concursos';
 }
 
-const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => {
+const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('dashboard');
   
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
-  
-  // Initialize state with empty structure, will populate via useEffect
   const [progress, setProgress] = useState<UserProgress>(getEmptyProgress());
 
-  // 1. Load Data on Mount
+  const currentTopics = category === 'math' ? MATH_TOPICS : CONCURSOS_TOPICS;
+
   useEffect(() => {
     if (user) {
       setLoading(true);
       const data = loadUserProgress(user.uid);
       setProgress(data);
       
-      // Determine initial view based on data
-      if (!data.hasCompletedPlacement) {
+      // Se mudar de categoria e as skills específicas dessa categoria estiverem zeradas, forçar nivelamento
+      const categorySkills = currentTopics.map(t => t.id);
+      const hasAnyProgress = categorySkills.some(id => data.skills[id]?.totalAttempts > 0);
+      
+      if (!data.hasCompletedPlacement || !hasAnyProgress) {
         setView('placement');
       } else {
         setView('dashboard');
       }
       setLoading(false);
     }
-  }, [user]);
+  }, [user, category]);
 
-  // 2. Save Data on Change
   useEffect(() => {
     if (user && !loading) {
       saveUserProgress(user.uid, progress);
     }
   }, [progress, user, loading]);
-
-  // Load initial flashcards for basic topics if empty (Simulation)
-  useEffect(() => {
-    if (!loading && progress.hasCompletedPlacement && progress.flashcards.length === 0) {
-      generateFlashcards(TopicId.INTRO_COUNTING).then(cards => {
-        if (cards.length > 0) {
-          setProgress(prev => ({
-            ...prev,
-            flashcards: [...prev.flashcards, ...cards]
-          }));
-        }
-      });
-    }
-  }, [progress.hasCompletedPlacement, loading, progress.flashcards.length]);
 
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
@@ -84,9 +73,14 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
 
     setProgress(prev => {
       const newSkills = { ...prev.skills };
-      Object.keys(newSkills).forEach(key => {
-        newSkills[key].masteryProbability = initialMastery;
+      // Atualizar apenas as skills da categoria atual
+      currentTopics.forEach(topic => {
+        newSkills[topic.id].masteryProbability = initialMastery;
+        topic.subSkills.forEach(sub => {
+          newSkills[sub.id].masteryProbability = initialMastery;
+        });
       });
+
       return {
         ...prev,
         hasCompletedPlacement: true,
@@ -94,7 +88,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
         history: [...prev.history, ...results]
       };
     });
-    
     setView('dashboard');
   };
 
@@ -126,9 +119,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
   };
 
   const handleSimulationComplete = (interactions: Interaction[]) => {
-    interactions.forEach(interaction => {
-      handleInteractionComplete(interaction);
-    });
+    interactions.forEach(interaction => handleInteractionComplete(interaction));
     setView('simulations');
     setActiveSimulation(null);
   };
@@ -145,125 +136,58 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
-        <p className="text-slate-600">Sincronizando seu perfil...</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
   const dueCards = getCardsDue(progress.flashcards);
-  const getCurrentTopicData = () => TOPICS_DATA.find(t => t.id === activeTopic);
+  const getCurrentTopicData = () => currentTopics.find(t => t.id === activeTopic);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 animate-in fade-in duration-300">
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center gap-4">
-               <button onClick={onExit} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors" title="Voltar às Disciplinas">
-                 <ArrowLeft className="w-5 h-5" />
-               </button>
-               <div className="flex items-center gap-3 cursor-pointer" onClick={() => progress.hasCompletedPlacement && setView('dashboard')}>
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold math-font">
-                  C!
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <nav className="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+             <button onClick={onExit} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
+             <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 ${category === 'math' ? 'bg-indigo-600' : 'bg-emerald-600'} rounded-lg flex items-center justify-center text-white font-bold`}>
+                  {category === 'math' ? <Book className="w-4 h-4" /> : <Scale className="w-4 h-4" />}
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg tracking-tight text-slate-800 leading-tight">Análise Combinatória</span>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 leading-none">Módulo de Matemática</span>
+                <div>
+                  <h2 className="font-bold text-sm tracking-tight">{category === 'math' ? 'Matemática Adaptativa' : 'Concursos Públicos'}</h2>
+                  <span className="text-[10px] text-slate-400 uppercase font-black">Módulo Ativo</span>
                 </div>
-              </div>
-            </div>
-            
-            {progress.hasCompletedPlacement && (
-              <div className="flex items-center gap-1 md:gap-4">
-                <button 
-                  onClick={() => setView('dashboard')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  <LayoutDashboard className="w-4 h-4" /> <span className="hidden md:inline">Trilha</span>
-                </button>
-                <button 
-                  onClick={() => setView('simulations')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'simulations' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  <Target className="w-4 h-4" /> <span className="hidden md:inline">Simulados</span>
-                </button>
-                <button 
-                  onClick={() => setView('flashcards')}
-                  className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'flashcards' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  <Brain className="w-4 h-4" /> <span className="hidden md:inline">Revisão</span>
-                  {dueCards.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
-                      {dueCards.length}
-                    </span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => setView('report')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'report' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  <BarChart2 className="w-4 h-4" /> <span className="hidden md:inline">Relatórios</span>
-                </button>
-              </div>
-            )}
+             </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`}><LayoutDashboard className="w-5 h-5" /></button>
+            <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`}><Target className="w-5 h-5" /></button>
+            <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`}>
+              <Brain className="w-5 h-5" />
+              {dueCards.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
+            </button>
+            <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`}><BarChart2 className="w-5 h-5" /></button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {view === 'placement' && (
-          <PlacementTest onComplete={handlePlacementComplete} />
-        )}
-
+      <main className="max-w-7xl mx-auto p-4 py-8">
+        {view === 'placement' && <PlacementTest category={category} onComplete={handlePlacementComplete} />}
         {view === 'dashboard' && (
-          <div className="space-y-12 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Sua Trilha de Conhecimento</h2>
-                <p className="text-slate-500 max-w-2xl mt-1">
-                  O sistema identificou seu nível e adaptou o conteúdo.
-                  Selecione um tópico para continuar evoluindo rumo ao nível Olímpico.
-                </p>
-              </div>
-              <div className="flex gap-4">
-                 {dueCards.length > 0 ? (
-                    <button 
-                      onClick={() => setView('flashcards')}
-                      className="bg-white border-2 border-indigo-100 px-4 py-2 rounded-lg shadow-sm hover:border-indigo-300 flex items-center gap-2 text-indigo-800"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
-                      <span className="font-bold">{dueCards.length} Revisões Pendentes</span>
-                    </button>
-                 ) : (
-                   <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-100 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                      <span className="text-xs font-bold text-green-700 uppercase">Tudo revisado</span>
-                   </div>
-                 )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {TOPICS_DATA.map(topic => (
-                <SkillCard 
-                  key={topic.id}
-                  topic={topic}
-                  parentStats={progress.skills[topic.id]} // Pass parent stats
-                  allSkills={progress.skills} // Pass all skills to lookup children
-                  onClick={handleTopicSelect}
-                />
-              ))}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentTopics.map(topic => (
+              <SkillCard 
+                key={topic.id}
+                topic={topic}
+                parentStats={progress.skills[topic.id]} 
+                allSkills={progress.skills} 
+                onClick={handleTopicSelect}
+              />
+            ))}
           </div>
         )}
-
         {view === 'practice' && activeTopic && (
           <PracticeSession 
+            category={category}
             topicId={activeTopic}
             topicName={getCurrentTopicData()?.name || ''}
             topicSubSkills={getCurrentTopicData()?.subSkills || []}
@@ -272,34 +196,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit }) => 
             onBack={() => setView('dashboard')}
           />
         )}
-
-        {view === 'simulations' && (
-          <SimulationHub onSelect={handleSimulationStart} />
-        )}
-
+        {view === 'simulations' && <SimulationHub onSelect={handleSimulationStart} />}
         {view === 'simulation_session' && activeSimulation && (
-          <SimulationSession 
-             config={activeSimulation}
-             onComplete={handleSimulationComplete}
-             onCancel={() => setView('simulations')}
-          />
+          <SimulationSession config={activeSimulation} onComplete={handleSimulationComplete} onCancel={() => setView('simulations')} />
         )}
-
-        {view === 'flashcards' && (
-          <FlashcardSession 
-            cards={dueCards}
-            onReview={handleCardReview}
-            onFinish={() => setView('dashboard')}
-          />
-        )}
-
-        {view === 'report' && (
-          <ReportView 
-            history={progress.history}
-            onBack={() => setView('dashboard')}
-          />
-        )}
-
+        {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}
+        {view === 'report' && <ReportView history={progress.history} onBack={() => setView('dashboard')} />}
       </main>
     </div>
   );
