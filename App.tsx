@@ -1,26 +1,19 @@
 
 import React, { useState } from 'react';
-import { BookOpen, Calculator, Beaker, Globe, Landmark, ChevronRight, Lock, LogOut } from 'lucide-react';
+import { BookOpen, Calculator, Beaker, Globe, Landmark, ChevronRight, Lock, LogOut, Video } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
+import OnlineClassroom from './components/OnlineClassroom';
 import LoginScreen from './components/LoginScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-type ViewState = 'hub' | 'subject_math' | 'module_combinatorics';
+type ViewState = 'hub' | 'subject_math' | 'module_combinatorics' | 'online_classroom';
 
-// Componente interno para acessar o hook useAuth (que deve estar dentro do Provider)
 const MainApp: React.FC = () => {
   const { user, loading, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>('hub');
 
-  // Loading Screen inicial
   if (loading) return <div className="min-h-screen bg-slate-50"></div>;
-
-  // Se não estiver logado, mostra Login
-  if (!user) {
-    return <LoginScreen />;
-  }
-
-  // --- Views ---
+  if (!user) return <LoginScreen />;
 
   const renderHub = () => (
     <div className="max-w-6xl mx-auto px-4 py-12 animate-in fade-in duration-500">
@@ -32,7 +25,6 @@ const MainApp: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Math Card */}
         <button 
           onClick={() => setCurrentView('subject_math')}
           className="group relative bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-indigo-200 transition-all duration-300 text-left overflow-hidden"
@@ -52,7 +44,6 @@ const MainApp: React.FC = () => {
           </div>
         </button>
 
-        {/* Physics Card (Disabled) */}
         <div className="group relative bg-slate-50 p-8 rounded-2xl border border-slate-200 text-left opacity-75 cursor-not-allowed">
            <div className="absolute top-4 right-4 text-slate-300">
              <Lock className="w-5 h-5" />
@@ -62,12 +53,8 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-400 mb-2">Física</h3>
             <p className="text-slate-400 text-sm mb-6">Mecânica, Termodinâmica e Óptica.</p>
-            <span className="inline-flex items-center text-sm font-bold text-slate-400">
-              Em breve
-            </span>
         </div>
 
-        {/* History Card (Disabled) */}
         <div className="group relative bg-slate-50 p-8 rounded-2xl border border-slate-200 text-left opacity-75 cursor-not-allowed">
            <div className="absolute top-4 right-4 text-slate-300">
              <Lock className="w-5 h-5" />
@@ -77,9 +64,6 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-400 mb-2">História</h3>
             <p className="text-slate-400 text-sm mb-6">História Geral e do Brasil.</p>
-            <span className="inline-flex items-center text-sm font-bold text-slate-400">
-              Em breve
-            </span>
         </div>
       </div>
     </div>
@@ -100,58 +84,41 @@ const MainApp: React.FC = () => {
         </div>
         <div>
            <h1 className="text-4xl font-bold text-slate-900">Matemática</h1>
-           <p className="text-slate-500">Selecione um módulo para iniciar seus estudos.</p>
+           <p className="text-slate-500">Ferramentas de ensino e trilhas de aprendizagem.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Module: Combinatorics */}
         <button 
           onClick={() => setCurrentView('module_combinatorics')}
           className="bg-white p-6 rounded-xl border border-slate-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-200 transition-all text-left shadow-sm hover:shadow-md"
         >
-           <div className="flex justify-between items-start mb-4">
-             <span className="text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Disponível</span>
-           </div>
            <h3 className="text-xl font-bold text-slate-900 mb-2">Análise Combinatória</h3>
-           <p className="text-sm text-slate-600 mb-4">
-             Princípios de contagem, permutações, combinações e probabilidade. Sistema adaptativo com IA.
-           </p>
+           <p className="text-sm text-slate-600 mb-4">Trilha adaptativa, simulados e revisões.</p>
            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
              <div className="bg-indigo-500 w-1/4 h-full"></div> 
            </div>
-           <p className="text-xs text-slate-400 mt-2">Progresso Salvo</p>
         </button>
 
-        {/* Module: Geometry (Disabled) */}
-        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-left opacity-60">
+        <button 
+          onClick={() => setCurrentView('online_classroom')}
+          className="bg-indigo-600 p-6 rounded-xl border border-indigo-700 hover:bg-indigo-700 transition-all text-left shadow-lg text-white"
+        >
            <div className="flex justify-between items-start mb-4">
-             <span className="text-xs font-bold uppercase tracking-wider bg-slate-200 text-slate-500 px-2 py-1 rounded">Em Breve</span>
+             <Video className="w-8 h-8 text-indigo-200" />
+             <span className="text-xs font-bold uppercase tracking-wider bg-white/20 text-white px-2 py-1 rounded">Novo</span>
            </div>
-           <h3 className="text-xl font-bold text-slate-500 mb-2">Geometria Plana</h3>
-           <p className="text-sm text-slate-500 mb-4">
-             Áreas, perímetros, semelhança de triângulos e círculos.
-           </p>
-        </div>
-
-         {/* Module: Functions (Disabled) */}
-         <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-left opacity-60">
-           <div className="flex justify-between items-start mb-4">
-             <span className="text-xs font-bold uppercase tracking-wider bg-slate-200 text-slate-500 px-2 py-1 rounded">Em Breve</span>
-           </div>
-           <h3 className="text-xl font-bold text-slate-500 mb-2">Funções</h3>
-           <p className="text-sm text-slate-500 mb-4">
-             Afim, Quadrática, Exponencial e Logarítmica.
-           </p>
-        </div>
+           <h3 className="text-xl font-bold mb-2">Aulas Online</h3>
+           <p className="text-sm text-indigo-100 mb-4">Ferramentas didáticas, Quadro Digital e IA para Professores.</p>
+           <span className="text-xs font-bold">Acessar Estúdio &rarr;</span>
+        </button>
       </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-slate-50 font-serif">
-      {/* Top Bar for Hub Navigation */}
-      {currentView !== 'module_combinatorics' && (
+      {currentView !== 'module_combinatorics' && currentView !== 'online_classroom' && (
         <nav className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-20">
            <div className="max-w-6xl mx-auto flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-slate-800 text-xl cursor-pointer" onClick={() => setCurrentView('hub')}>
@@ -159,23 +126,9 @@ const MainApp: React.FC = () => {
                  <span>Plataforma de <span className="text-indigo-600">Estudos</span></span>
               </div>
               <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
-                 {/* User Profile Info */}
                  <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <span className="hidden sm:inline font-bold text-slate-700">{user.name}</span>
-                    <button 
-                      onClick={signOut}
-                      className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                      title="Sair da Conta"
-                    >
-                      <LogOut className="w-5 h-5" />
-                    </button>
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.name} className="w-8 h-8 rounded-full border border-slate-200" />
-                    ) : (
-                      <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">
-                        {user.name.charAt(0)}
-                      </div>
-                    )}
+                    <button onClick={signOut} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
                  </div>
               </div>
            </div>
@@ -187,17 +140,17 @@ const MainApp: React.FC = () => {
       {currentView === 'module_combinatorics' && (
         <CombinatoricsModule onExit={() => setCurrentView('subject_math')} />
       )}
+      {currentView === 'online_classroom' && (
+        <OnlineClassroom onExit={() => setCurrentView('subject_math')} />
+      )}
     </div>
   );
 };
 
-// Root App Wrapper
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
-  );
-};
+const App: React.FC = () => (
+  <AuthProvider>
+    <MainApp />
+  </AuthProvider>
+);
 
 export default App;

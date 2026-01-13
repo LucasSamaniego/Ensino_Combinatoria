@@ -1,5 +1,8 @@
 {
   "name": "Plataforma de Estudos",
   "description": "Uma plataforma de ensino adaptativo multi-disciplinar.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }
