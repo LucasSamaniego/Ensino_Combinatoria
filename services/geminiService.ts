@@ -1,12 +1,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig } from '../types';
+import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard } from '../types';
+import { getInitialSRSState } from './srsService';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const MODEL_FLASH = 'gemini-3-flash-preview';
 const MODEL_REASONING = 'gemini-3-pro-preview';
 
-// --- Theory Generation (Legacy - maintained for detailed review if needed) ---
+const LATEX_INSTRUCTION = `
+    IMPORTANTE SOBRE JSON E LATEX:
+    Como sua saída é um JSON, você deve ESCAPAR DUPLAMENTE as barras invertidas do LaTeX.
+    - Errado: "\\times", "\\frac" (O parser JSON vai corromper isso).
+    - Correto: "\\\\times", "\\\\frac", "\\\\{", "\\\\}".
+    Certifique-se de que fórmulas matemáticas (entre $...$) usem duplas barras.
+`;
+
+// --- Theory Generation (Legacy) ---
 
 export const generateTheory = async (
   topicName: string,
@@ -20,6 +29,7 @@ export const generateTheory = async (
     
     Gere uma explicação teórica CURTA e OBJETIVA.
     Use LaTeX ($...$) para fórmulas.
+    ${LATEX_INSTRUCTION}
     
     JSON Output: { title, content, example, visualization }
   `;
@@ -62,6 +72,7 @@ export const generateProblem = async (
 
     FORMATAÇÃO:
     - Use LaTeX ($...$) para matemática.
+    ${LATEX_INSTRUCTION}
     
     VISUALIZAÇÃO:
     - 'slots': Princípio multiplicativo, placas, senhas.
@@ -72,7 +83,7 @@ export const generateProblem = async (
 
     Estruture JSON:
     {
-      "text": "Enunciado...",
+      "text": "Enunciado com $math$...",
       "options": ["A", "B", "C", "D"] (null se Advanced/Olympiad),
       "correctAnswer": "Resposta final",
       "explanation": "Resolução completa",
@@ -148,10 +159,10 @@ export const generateProblem = async (
       subSkillId,
       subSkillName,
       difficulty: Difficulty.BASIC,
-      text: `Erro na IA. Resolva: 3!`,
+      text: `Erro na IA. Resolva: $3!$`,
       options: ['3', '6', '9', '12'],
       correctAnswer: '6',
-      explanation: '3! = 6',
+      explanation: '$3! = 3 \\times 2 \\times 1 = 6$',
       miniTheory: 'Fatorial de n é o produto de 1 até n.',
       hints: ['Multiplique 3 * 2 * 1']
     };
@@ -169,6 +180,8 @@ export const generatePlacementQuestions = async (): Promise<Question[]> => {
     2. Questão Intermediária: Combinação Simples vs Arranjo.
     3. Questão Avançada: Permutação com Repetição ou Circular.
     
+    ${LATEX_INSTRUCTION}
+
     Retorne um ARRAY JSON com 3 objetos de questão completos (text, options, correctAnswer, topicId correspondente).
     Para 'topicId', use: 'intro_counting', 'combinations', ou 'permutations'.
   `;
@@ -232,6 +245,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig): Pro
     Gere um SIMULADO de Análise Combinatória contendo ${questionCount} questões.
     ESTILO: ${stylePrompt}
     DIFICULDADE: ${difficulty}.
+    ${LATEX_INSTRUCTION}
     
     As questões devem ser variadas dentro da Análise Combinatória.
     Retorne um ARRAY JSON de objetos. Cada objeto deve conter 'text', 'options' (5 opções A-E), 'correctAnswer' (apenas a letra ou valor), 'explanation', e um 'topicId' aproximado.
@@ -279,6 +293,60 @@ export const generateSimulationQuestions = async (config: SimulationConfig): Pro
     return [];
   }
 }
+
+// --- Flashcard Generation ---
+
+export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]> => {
+  const prompt = `
+    Crie 4 Flashcards Conceituais (Active Recall) sobre o tópico de Análise Combinatória: ${topicId}.
+    
+    Foco:
+    1. Fórmulas (sem números, apenas a relação).
+    2. Conceitos chave e definições.
+    3. Gatilhos de decisão (ex: "Quando a ordem importa?").
+    
+    Use LaTeX para matemática.
+    ${LATEX_INSTRUCTION}
+    O 'front' é a pergunta/desafio. O 'back' é a resposta clara.
+    
+    Retorne um Array JSON.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_FLASH,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+           type: Type.ARRAY,
+           items: {
+             type: Type.OBJECT,
+             properties: {
+               front: { type: Type.STRING },
+               back: { type: Type.STRING }
+             },
+             required: ['front', 'back']
+           }
+        }
+      }
+    });
+
+    const data = JSON.parse(response.text || '[]');
+    if (!Array.isArray(data)) return [];
+
+    return data.map((card: any) => ({
+      id: crypto.randomUUID(),
+      topicId: topicId,
+      front: card.front,
+      back: card.back,
+      srs: getInitialSRSState()
+    }));
+  } catch (e) {
+    console.error("Flashcard Gen Error", e);
+    return [];
+  }
+};
 
 
 // --- Reports ---

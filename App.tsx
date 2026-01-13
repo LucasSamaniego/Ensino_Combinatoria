@@ -1,26 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UserProgress, 
   TopicId, 
   SkillState,
   Interaction,
-  SimulationConfig
+  SimulationConfig,
+  Flashcard
 } from './types';
 import { 
   TOPICS_DATA, 
   DEFAULT_BKT_PARAMS 
 } from './constants';
 import { updateHierarchicalKnowledge } from './services/tracingService';
+import { generateFlashcards } from './services/geminiService';
+import { getCardsDue, calculateNextReview, ReviewGrade } from './services/srsService';
+
 import SkillCard from './components/SkillCard';
 import PracticeSession from './components/PracticeSession';
 import ReportView from './components/ReportView';
 import PlacementTest from './components/PlacementTest';
 import SimulationHub from './components/SimulationHub';
 import SimulationSession from './components/SimulationSession';
-import { LayoutDashboard, Target, BarChart2 } from 'lucide-react';
+import FlashcardSession from './components/FlashcardSession';
+
+import { LayoutDashboard, Target, BarChart2, Brain, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session'>('placement');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('placement');
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
   
@@ -57,9 +63,25 @@ const App: React.FC = () => {
     return { 
       hasCompletedPlacement: false,
       skills, 
-      history: [] 
+      history: [],
+      flashcards: [] // Init empty deck
     };
   });
+
+  // Load initial flashcards for basic topics if empty (Simulation)
+  useEffect(() => {
+    if (progress.hasCompletedPlacement && progress.flashcards.length === 0) {
+      // Lazy load intro flashcards
+      generateFlashcards(TopicId.INTRO_COUNTING).then(cards => {
+        if (cards.length > 0) {
+          setProgress(prev => ({
+            ...prev,
+            flashcards: [...prev.flashcards, ...cards]
+          }));
+        }
+      });
+    }
+  }, [progress.hasCompletedPlacement]);
 
   // Check if placement is needed on mount (mock check logic for this demo)
   React.useEffect(() => {
@@ -71,18 +93,14 @@ const App: React.FC = () => {
   }, [progress.hasCompletedPlacement]);
 
   const handlePlacementComplete = (results: Interaction[]) => {
-    // Basic Heuristic: If they got > 50% right, bump starting mastery
     const correctCount = results.filter(r => r.isCorrect).length;
-    const initialMastery = correctCount >= 2 ? 0.45 : 0.15; // Start at Intermediate or Basic
+    const initialMastery = correctCount >= 2 ? 0.45 : 0.15; 
 
     setProgress(prev => {
       const newSkills = { ...prev.skills };
-      
-      // Update all skills with the placement result baseline
       Object.keys(newSkills).forEach(key => {
         newSkills[key].masteryProbability = initialMastery;
       });
-
       return {
         ...prev,
         hasCompletedPlacement: true,
@@ -94,24 +112,28 @@ const App: React.FC = () => {
     setView('dashboard');
   };
 
-  const handleTopicSelect = (id: TopicId) => {
+  const handleTopicSelect = async (id: TopicId) => {
     setActiveTopic(id);
+    
+    // Check if we have flashcards for this topic, if not, generate them silently
+    const hasCards = progress.flashcards.some(c => c.topicId === id);
+    if (!hasCards) {
+      generateFlashcards(id).then(newCards => {
+        setProgress(prev => ({
+          ...prev,
+          flashcards: [...prev.flashcards, ...newCards]
+        }));
+      });
+    }
+
     setView('practice');
   };
 
   const handleInteractionComplete = (interaction: Interaction) => {
     setProgress(prev => {
-      // 1. Update Hierarchical BKT
       const newSkills = updateHierarchicalKnowledge(prev.skills, interaction, DEFAULT_BKT_PARAMS);
-      
-      // 2. Add to history for DKT Analysis
       const newHistory = [...prev.history, interaction];
-
-      return {
-        ...prev,
-        skills: newSkills,
-        history: newHistory
-      };
+      return { ...prev, skills: newSkills, history: newHistory };
     });
   };
 
@@ -121,21 +143,34 @@ const App: React.FC = () => {
   };
 
   const handleSimulationComplete = (interactions: Interaction[]) => {
-    // Batch update knowledge state based on simulation results
     interactions.forEach(interaction => {
       handleInteractionComplete(interaction);
     });
-    // Return to hub after saving
     setView('simulations');
     setActiveSimulation(null);
   };
+
+  // SRS Handlers
+  const handleCardReview = (cardId: string, grade: ReviewGrade) => {
+    setProgress(prev => {
+      const newDeck = prev.flashcards.map(card => {
+        if (card.id === cardId) {
+          return { ...card, srs: calculateNextReview(card.srs, grade) };
+        }
+        return card;
+      });
+      return { ...prev, flashcards: newDeck };
+    });
+  };
+
+  const dueCards = getCardsDue(progress.flashcards);
 
   const getCurrentTopicData = () => {
     return TOPICS_DATA.find(t => t.id === activeTopic);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -159,6 +194,17 @@ const App: React.FC = () => {
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'simulations' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
                 >
                   <Target className="w-4 h-4" /> <span className="hidden md:inline">Simulados</span>
+                </button>
+                <button 
+                  onClick={() => setView('flashcards')}
+                  className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === 'flashcards' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  <Brain className="w-4 h-4" /> <span className="hidden md:inline">Revisão</span>
+                  {dueCards.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                      {dueCards.length}
+                    </span>
+                  )}
                 </button>
                 <button 
                   onClick={() => setView('report')}
@@ -188,9 +234,21 @@ const App: React.FC = () => {
                   Selecione um tópico para continuar evoluindo rumo ao nível Olímpico.
                 </p>
               </div>
-              <div className="bg-indigo-50 px-4 py-2 rounded-lg border border-indigo-100">
-                <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Modo Adaptativo</span>
-                <p className="font-bold text-indigo-900">Ativo</p>
+              <div className="flex gap-4">
+                 {dueCards.length > 0 ? (
+                    <button 
+                      onClick={() => setView('flashcards')}
+                      className="bg-white border-2 border-indigo-100 px-4 py-2 rounded-lg shadow-sm hover:border-indigo-300 flex items-center gap-2 text-indigo-800"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span className="font-bold">{dueCards.length} Revisões Pendentes</span>
+                    </button>
+                 ) : (
+                   <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-100 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      <span className="text-xs font-bold text-green-700 uppercase">Tudo revisado</span>
+                   </div>
+                 )}
               </div>
             </div>
 
@@ -228,6 +286,14 @@ const App: React.FC = () => {
              config={activeSimulation}
              onComplete={handleSimulationComplete}
              onCancel={() => setView('simulations')}
+          />
+        )}
+
+        {view === 'flashcards' && (
+          <FlashcardSession 
+            cards={dueCards}
+            onReview={handleCardReview}
+            onFinish={() => setView('dashboard')}
           />
         )}
 

@@ -182,7 +182,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                       </div>
                    )}
 
-                   <div className="text-xl text-gray-800 font-serif leading-relaxed mb-8">
+                   <div className="text-xl text-gray-800 leading-relaxed mb-8">
                      <MathRenderer text={question.text} />
                    </div>
 

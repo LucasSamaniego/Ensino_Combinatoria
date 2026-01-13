@@ -130,7 +130,7 @@ const ReportView: React.FC<ReportViewProps> = ({ history, onBack }) => {
                           fill="#e2e8f0" 
                           fontSize="3" 
                           textAnchor="middle" 
-                          className="font-sans pointer-events-none select-none"
+                          className="pointer-events-none select-none"
                         >
                           {node.label}
                         </text>

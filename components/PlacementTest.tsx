@@ -86,7 +86,7 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ onComplete }) => {
           Responda para que possamos adaptar a dificuldade da trilha para você.
         </p>
 
-        <div className="text-lg text-gray-800 font-serif leading-relaxed mb-8">
+        <div className="text-lg text-gray-800 leading-relaxed mb-8">
            <MathRenderer text={currentQ.text} />
         </div>
 

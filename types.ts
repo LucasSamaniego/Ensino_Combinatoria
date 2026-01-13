@@ -76,10 +76,28 @@ export interface BKTParams {
   p_guess: number;
 }
 
+// --- SRS (Spaced Repetition) Types ---
+
+export interface SRSState {
+  interval: number; // Days until next review
+  repetition: number; // Consecutive successful reviews
+  easeFactor: number; // SM-2 Ease Factor (starts at 2.5)
+  nextReviewDate: number; // Timestamp
+}
+
+export interface Flashcard {
+  id: string;
+  topicId: TopicId;
+  front: string; // Concept / Question
+  back: string; // Definition / Formula / Answer
+  srs: SRSState;
+}
+
 export interface UserProgress {
   hasCompletedPlacement: boolean; // Flag para teste de nivelamento
   skills: { [key: string]: SkillState }; // Flattens both Topics and SubSkills for easy access
   history: Interaction[];
+  flashcards: Flashcard[]; // New: Flashcard deck
 }
 
 export interface GraphNode {

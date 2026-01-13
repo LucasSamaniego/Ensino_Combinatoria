@@ -209,38 +209,19 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, onComplet
               <span className="text-xs font-bold text-indigo-600">{config.style}</span>
             </div>
             
-            <div className="text-lg text-gray-900 font-serif leading-relaxed mb-8">
+            <div className="text-lg text-gray-900 leading-relaxed mb-8">
                <MathRenderer text={currentQ.text} />
             </div>
 
             <div className="space-y-3">
               {currentQ.options?.map((opt, idx) => {
-                 // Try to extract letter if it exists like "A) ..." or assume options are just text
-                 // but Gemini usually puts the letter in the option text or as a separate field.
-                 // We will display A, B, C, D based on index.
-                 // NOTE: For 'options' array from Gemini, usually it's just the content. 
-                 // Let's assume correctAnswer matches the content OR the letter.
-                 // To be safe for Military style/simulations, let's treat the index-based letter as the key.
-                 
-                 // Simpler approach: Just compare values strictly or allow user to pick.
-                 // But for simulation, we usually click the block.
-                 
                  const letter = String.fromCharCode(65 + idx); // A, B, C...
-                 // If correctAnswer is 'A', we match letter. If it's '120', we match text.
                  const isSelected = userAnswers[currentIndex] === letter || userAnswers[currentIndex] === opt;
                  
                  return (
                   <button
                     key={idx}
                     onClick={() => handleSelectOption(currentQ.correctAnswer.length === 1 ? letter : opt)} 
-                    // Note: If Gemini returns 'A' as correct answer, we store 'A'. 
-                    // If it returns '120', we store '120'.
-                    // To unify, let's try to match what the user clicks to what is likely the format.
-                    // For this implementation, I will store the OPTION TEXT if the answer looks like text, 
-                    // or the LETTER if the answer looks like a letter.
-                    // Actually, let's just stick to the letter for UI simplicity if possible, but the API might return value.
-                    // Hack: Store the content `opt` effectively.
-                    
                     className={`w-full p-4 text-left rounded-xl border-2 transition-all group ${
                       userAnswers[currentIndex] === opt || (currentQ.correctAnswer.length === 1 && userAnswers[currentIndex] === letter)
                         ? 'border-indigo-600 bg-indigo-50 shadow-md'
