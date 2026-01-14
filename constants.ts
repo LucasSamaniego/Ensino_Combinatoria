@@ -22,37 +22,88 @@ export const EXPECTED_TIME = {
   [Difficulty.OLYMPIAD]: 400
 };
 
-// --- MÓDULOS DE MATEMÁTICA ---
+// --- MÓDULOS DE MATEMÁTICA BÁSICA (Neuroeducação & Realfabetização) ---
 
 export const BASIC_MATH_TOPICS = [
   {
-    id: TopicId.BASIC_ARITHMETIC,
-    name: '0. Aritmética e Tabuada',
-    description: 'Estratégias de memorização, padrões numéricos e atalhos mentais.',
+    id: TopicId.MATH_BASICS_DIAGNOSTIC,
+    name: 'Tópico 0: Diagnóstico Inicial',
+    description: 'Identificação de falhas conceituais e operacionais sem nota.',
     subSkills: [
-      { id: 'mult_tables_1_5', name: 'Tabuada (1 ao 5) e Padrões', parentId: TopicId.BASIC_ARITHMETIC },
-      { id: 'mult_tables_6_9', name: 'Tabuada (6 ao 9) e Macetes', parentId: TopicId.BASIC_ARITHMETIC },
-      { id: 'mult_mental_tricks', name: 'Truques de Cálculo Mental', parentId: TopicId.BASIC_ARITHMETIC }
+      { id: 'diag_conceptual', name: 'Conceitos Numéricos', parentId: TopicId.MATH_BASICS_DIAGNOSTIC },
+      { id: 'diag_operational', name: 'Operações Básicas', parentId: TopicId.MATH_BASICS_DIAGNOSTIC },
+      { id: 'diag_interpretation', name: 'Interpretação de Problemas', parentId: TopicId.MATH_BASICS_DIAGNOSTIC }
     ]
   },
   {
-    id: TopicId.BASIC_SETS,
-    name: '1. Expressões e Conjuntos',
-    description: 'Ordem das operações e linguagem dos conjuntos.',
+    id: TopicId.MATH_BASICS_NUMBER_SENSE,
+    name: 'Tópico 1: Noção de Número',
+    description: 'Quantidade, comparação, ordem e estimativa.',
     subSkills: [
-      { id: 'num_expressions', name: 'Expressões Numéricas (Ordem das Op.)', parentId: TopicId.BASIC_SETS },
-      { id: 'sets_intro', name: 'Introdução a Conjuntos', parentId: TopicId.BASIC_SETS },
-      { id: 'number_sets', name: 'Conjuntos Numéricos (N, Z, Q, R)', parentId: TopicId.BASIC_SETS }
+      { id: 'num_quantity', name: 'Número como Quantidade', parentId: TopicId.MATH_BASICS_NUMBER_SENSE },
+      { id: 'num_comparison', name: 'Comparação e Ordem', parentId: TopicId.MATH_BASICS_NUMBER_SENSE },
+      { id: 'num_decomposition', name: 'Decomposição Numérica', parentId: TopicId.MATH_BASICS_NUMBER_SENSE },
+      { id: 'num_estimation', name: 'Estimativa', parentId: TopicId.MATH_BASICS_NUMBER_SENSE }
     ]
   },
   {
-    id: TopicId.BASIC_ALGEBRA,
-    name: '2. Equações e Inequações',
-    description: 'Fundamentos da álgebra elementar e resolução de problemas.',
+    id: TopicId.MATH_BASICS_DECIMAL_SYSTEM,
+    name: 'Tópico 2: Sistema Decimal',
+    description: 'Valor posicional, base 10 e trocas.',
     subSkills: [
-      { id: 'eq_1_degree', name: 'Equações de 1º Grau', parentId: TopicId.BASIC_ALGEBRA },
-      { id: 'ineq_1_degree', name: 'Inequações de 1º Grau', parentId: TopicId.BASIC_ALGEBRA },
-      { id: 'problem_solving_eq', name: 'Problemas com Equações', parentId: TopicId.BASIC_ALGEBRA }
+      { id: 'dec_base10', name: 'Agrupamento Base 10', parentId: TopicId.MATH_BASICS_DECIMAL_SYSTEM },
+      { id: 'dec_place_value', name: 'Unidade, Dezena, Centena', parentId: TopicId.MATH_BASICS_DECIMAL_SYSTEM },
+      { id: 'dec_reading_writing', name: 'Leitura e Escrita', parentId: TopicId.MATH_BASICS_DECIMAL_SYSTEM }
+    ]
+  },
+  {
+    id: TopicId.MATH_BASICS_ADD_SUB,
+    name: 'Tópico 3: Adição e Subtração',
+    description: 'Compreensão conceitual: juntar, tirar e comparar.',
+    subSkills: [
+      { id: 'op_add_concept', name: 'Conceito de Juntar', parentId: TopicId.MATH_BASICS_ADD_SUB },
+      { id: 'op_sub_concept', name: 'Conceito de Tirar/Comparar', parentId: TopicId.MATH_BASICS_ADD_SUB },
+      { id: 'op_visual_reps', name: 'Representações Visuais', parentId: TopicId.MATH_BASICS_ADD_SUB }
+    ]
+  },
+  {
+    id: TopicId.MATH_BASICS_MULT_DIV,
+    name: 'Tópico 4: Multiplicação e Divisão',
+    description: 'Grupos, repartição e relação inversa (sem decoreba).',
+    subSkills: [
+      { id: 'mult_groups', name: 'Parcelas Iguais e Grupos', parentId: TopicId.MATH_BASICS_MULT_DIV },
+      { id: 'div_grouping', name: 'Repartição e Agrupamento', parentId: TopicId.MATH_BASICS_MULT_DIV },
+      { id: 'mult_div_relation', name: 'Relação Inversa', parentId: TopicId.MATH_BASICS_MULT_DIV }
+    ]
+  },
+  {
+    id: TopicId.MATH_BASICS_FRACTIONS,
+    name: 'Tópico 5: Frações e Decimais',
+    description: 'Parte do todo e aplicações cotidianas.',
+    subSkills: [
+      { id: 'frac_concept', name: 'Conceito de Parte/Todo', parentId: TopicId.MATH_BASICS_FRACTIONS },
+      { id: 'frac_visual', name: 'Representações Visuais', parentId: TopicId.MATH_BASICS_FRACTIONS },
+      { id: 'decimal_conversion', name: 'Decimais e Dinheiro', parentId: TopicId.MATH_BASICS_FRACTIONS }
+    ]
+  },
+  {
+    id: TopicId.MATH_BASICS_MEASURES,
+    name: 'Tópico 6: Medidas e Grandezas',
+    description: 'Comprimento, massa, capacidade e tempo.',
+    subSkills: [
+      { id: 'meas_length_mass', name: 'Comprimento e Massa', parentId: TopicId.MATH_BASICS_MEASURES },
+      { id: 'meas_time', name: 'Tempo e Calendário', parentId: TopicId.MATH_BASICS_MEASURES },
+      { id: 'meas_estimation', name: 'Estimativa de Grandezas', parentId: TopicId.MATH_BASICS_MEASURES }
+    ]
+  },
+  {
+    id: TopicId.MATH_BASICS_INTERPRETATION,
+    name: 'Tópico 7: Interpretação',
+    description: 'Tradução de textos para operações matemáticas.',
+    subSkills: [
+      { id: 'interp_data', name: 'Identificação de Dados', parentId: TopicId.MATH_BASICS_INTERPRETATION },
+      { id: 'interp_question', name: 'Identificação da Pergunta', parentId: TopicId.MATH_BASICS_INTERPRETATION },
+      { id: 'interp_translation', name: 'Tradução Texto-Operação', parentId: TopicId.MATH_BASICS_INTERPRETATION }
     ]
   }
 ];

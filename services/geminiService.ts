@@ -26,20 +26,27 @@ export const generateProblem = async (
   let persona = "";
   let constraints = "";
   
+  // Verificação se é Matemática Básica (Módulos 0-7)
+  const isBasicMath = topicId.startsWith('math_basics_');
+
   if (category === 'math') {
-    // Lógica diferenciada para Matemática Básica vs Combinatória Avançada
-    // Agora inclui também conjuntos e álgebra básica na persona "didática"
-    if (topicId === TopicId.BASIC_ARITHMETIC || topicId === TopicId.BASIC_SETS || topicId === TopicId.BASIC_ALGEBRA) {
-      persona = "Você é um especialista em Didática da Matemática Fundamental, focado em Neurociência da Aprendizagem.";
+    if (isBasicMath) {
+      persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
       constraints = `
-        - OBJETIVO: Ensinar fundamentos de forma lógica e progressiva, evitando decoreba.
-        - ESTILO: Lúdico, encorajador e visual.
-        - PROIBIDO: Usar didática universitária ou o estilo do Morgado.
-        - ESTRATÉGIAS:
-          1. Se for Equações: Use a lógica da balança (o que faz de um lado, faz do outro).
-          2. Se for Conjuntos: Use diagramas de Venn textuais ou exemplos concretos.
-          3. Se for Aritmética: Use padrões e decomposição numérica.
-        - VISUALIZAÇÃO: Se possível, use o tipo 'venn' para conjuntos ou 'none' para álgebra.
+        SIGA RIGOROSAMENTE AS SEGUINTES REGRAS DE DESIGN INSTRUCIONAL:
+        1. **Objetivo**: Realfabetização matemática. Priorize compreensão conceitual antes de algoritmos.
+        2. **Linguagem**: Simples, concreta, acessível e motivadora. Evite punição ou tecnicismo excessivo.
+        3. **Contexto**: Use exemplos do cotidiano (dinheiro, objetos, situações reais).
+        4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro (ex: confusão de valor posicional), não apenas a resposta.
+        5. **Microprogressão**: A questão deve ser adequada para quem tem defasagem escolar ou ansiedade matemática.
+        6. **Visualização**: Se possível, solicite visualização do tipo 'slots' (para valor posicional) ou 'venn' (para conjuntos/classificação).
+        7. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia e memorização mecânica.
+        
+        CONTEXTO ESPECÍFICO DO TÓPICO:
+        - Se for Tópico 1 (Noção de Número): Foco em quantidade, ordem e decomposição.
+        - Se for Tópico 2 (Sistema Decimal): Foco em valor posicional e trocas (unidade/dezena).
+        - Se for Tópico 3/4 (Operações): Foco no significado (juntar, tirar, agrupar) e não na conta armada.
+        - Se for Tópico 7 (Interpretação): Foco em identificar dados e a pergunta.
       `;
     } else {
       persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
@@ -74,13 +81,13 @@ export const generateProblem = async (
 
     Retorne APENAS o JSON no esquema:
     {
-      "text": "Enunciado da questão (foque no macete/estratégia se for Tabuada)...",
+      "text": "Enunciado da questão (contextualizado e claro)...",
       "options": ["A", "B", "C", "D", "E"],
       "correctAnswer": "A opção exata",
-      "explanation": "Resolução focada no 'como pensar'...",
-      "hints": ["Dica estratégica 1", "Dica estratégica 2"],
-      "miniTheory": "Breve explicação do padrão ou macete...",
-      "banca": "Nome da Banca (ex: FGV 2024) - Obrigatorio se for concurso",
+      "explanation": "Explicação passo a passo, focada na causa do erro e no conceito...",
+      "hints": ["Dica conceitual 1", "Dica prática 2"],
+      "miniTheory": "Breve explicação do conceito chave (sem decoreba)...",
+      "banca": "Nome da Banca (apenas se for Concurso)",
       "visualization": { "type": "slots|circular|venn|urn|none", "data": {...}, "label": "..." }
     }
   `;
@@ -166,8 +173,8 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
   
   if (category === 'math') {
     if (subCategory === 'basic') {
-      persona = "Especialista em Ensino Fundamental e Aritmética.";
-      contentFilter = "Gere 4 questões de Nivelamento focadas em: Tabuada, Equações de 1º Grau, Conjuntos e Expressões Numéricas.";
+      persona = "Especialista em Neuroeducação e Matemática Fundamental.";
+      contentFilter = "Gere 4 questões de Diagnóstico Inicial (Tópico 0) cobrindo: Noção de Quantidade, Sistema Decimal (valor posicional) e Interpretação de problemas simples. O objetivo é identificar lacunas básicas.";
     } else {
       persona = "Professor Morgado (Matemática Discreta).";
       contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";

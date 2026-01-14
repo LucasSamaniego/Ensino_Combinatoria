@@ -7,10 +7,15 @@ export enum Difficulty {
 }
 
 export enum TopicId {
-  // Matemática Básica
-  BASIC_ARITHMETIC = 'basic_arithmetic',
-  BASIC_SETS = 'basic_sets',
-  BASIC_ALGEBRA = 'basic_algebra',
+  // Matemática Básica - Realfabetização (Módulos 0-7)
+  MATH_BASICS_DIAGNOSTIC = 'math_basics_0_diagnostic',
+  MATH_BASICS_NUMBER_SENSE = 'math_basics_1_number_sense',
+  MATH_BASICS_DECIMAL_SYSTEM = 'math_basics_2_decimal_system',
+  MATH_BASICS_ADD_SUB = 'math_basics_3_add_sub',
+  MATH_BASICS_MULT_DIV = 'math_basics_4_mult_div',
+  MATH_BASICS_FRACTIONS = 'math_basics_5_fractions',
+  MATH_BASICS_MEASURES = 'math_basics_6_measures',
+  MATH_BASICS_INTERPRETATION = 'math_basics_7_interpretation',
 
   // Matemática - Combinatória
   INTRO_COUNTING = 'intro_counting',
