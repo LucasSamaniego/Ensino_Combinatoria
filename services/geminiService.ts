@@ -108,6 +108,7 @@ export const generateProblem = async (
             hints: { type: Type.ARRAY, items: { type: Type.STRING } },
             miniTheory: { type: Type.STRING },
             banca: { type: Type.STRING, nullable: true },
+            source: { type: Type.STRING, nullable: true },
             visualization: {
               type: Type.OBJECT,
               properties: {
@@ -148,7 +149,8 @@ export const generateProblem = async (
       visualization: data.visualization,
       hints: data.hints || [],
       miniTheory: data.miniTheory,
-      banca: data.banca
+      banca: data.banca,
+      source: data.source
     };
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -212,7 +214,8 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
                   correctAnswer: { type: Type.STRING },
                   topicId: { type: Type.STRING },
                   explanation: { type: Type.STRING },
-                  banca: { type: Type.STRING, nullable: true }
+                  banca: { type: Type.STRING, nullable: true },
+                  source: { type: Type.STRING, nullable: true }
                 },
                 required: ["text", "options", "correctAnswer", "topicId", "explanation"]
               }
@@ -248,10 +251,40 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     ? `RESTRIÇÃO DE CONTEÚDO: As questões DEVEM ser EXCLUSIVAMENTE sobre os seguintes tópicos: ${contextTopics.join(', ')}.`
     : '';
 
+  let styleInstruction = "";
+  if (style === 'Olympiad') {
+    styleInstruction = `
+      ATENÇÃO: Este é um simulado de NÍVEL OLÍMPICO INTERNACIONAL.
+      
+      REFERÊNCIAS OBRIGATÓRIAS:
+      Utilize como inspiração questões de competições renomadas mundialmente, adaptadas para o nível dos tópicos solicitados.
+      Exemplos de fontes:
+      - Brasil: OBMEP (Nível 1/2), OBM.
+      - Estados Unidos: AMC 8, AMC 10.
+      - Rússia: Olimpíadas de Moscou, Torneio das Cidades (Nível iniciante).
+      - Outros: Canguru Matemático, Olimpíadas da China, Hungria ou Índia.
+
+      OBRIGATÓRIO:
+      Para CADA questão, você DEVE especificar a fonte real (Nome da Olimpíada, Ano, País) no campo 'source'. 
+      Exemplo: "OBMEP 2015 - Brasil" ou "AMC 8 2020 - EUA".
+
+      CARACTERÍSTICAS DAS QUESTÕES:
+      - Devem exigir 'sacadas' (insights) criativos e não apenas aplicação direta de fórmulas.
+      - Foco em Lógica, Invariantes, Princípio da Casa dos Pombos, Paridade, e Geometria Intuitiva (visual).
+      - Enunciados interessantes e desafiadores, típicos de cultura de resolução de problemas.
+    `;
+  } else if (style === 'Concurso') {
+    styleInstruction = "Cite e emule o estilo de bancas como FGV, CESPE, Vunesp, Cesgranrio.";
+  } else if (style === 'Military') {
+    styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica.";
+  }
+
   const prompt = `
     Gere um SIMULADO de ${questionCount} questões no estilo ${style} nível ${difficulty}.
+    ${styleInstruction}
     ${topicRestriction}
-    Se for Concurso, cite bancas como FGV ou CESPE.
+    
+    Se for Concurso, cite bancas.
     Retorne JSON Array.
     ${LATEX_INSTRUCTION}
   `;
@@ -272,7 +305,8 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
               correctAnswer: { type: Type.STRING },
               explanation: { type: Type.STRING },
               topicId: { type: Type.STRING },
-              banca: { type: Type.STRING, nullable: true }
+              banca: { type: Type.STRING, nullable: true },
+              source: { type: Type.STRING, nullable: true }
             }
           }
         }

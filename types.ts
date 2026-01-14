@@ -89,7 +89,8 @@ export interface Question {
   visualization?: VisualizationData;
   hints?: string[];     
   miniTheory?: string;
-  banca?: string; // Novo: Identifica a banca examinadora (ex: FGV, CESPE)
+  banca?: string; // Identifica a banca examinadora (ex: FGV, CESPE)
+  source?: string; // Novo: Identifica a fonte olímpica (ex: OBMEP 2023 - Brasil)
 }
 
 export interface TheoryContent {

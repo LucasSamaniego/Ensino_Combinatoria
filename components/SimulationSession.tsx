@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { SimulationConfig, Question, Interaction, TopicId } from '../types';
 import { generateSimulationQuestions } from '../services/geminiService';
 import MathRenderer from './MathRenderer';
-import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe } from 'lucide-react';
 
 interface SimulationSessionProps {
   config: SimulationConfig;
@@ -18,7 +18,6 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
   const [loading, setLoading] = useState(true);
   const [userAnswers, setUserAnswers] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
-  const [startTime, setStartTime] = useState(0);
   
   // Timer for display
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -32,7 +31,6 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
       
       setQuestions(qs);
       setUserAnswers(new Array(qs.length).fill(''));
-      setStartTime(Date.now());
       setLoading(false);
     };
     load();
@@ -60,20 +58,6 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
 
   const handleFinish = () => {
     setIsFinished(true);
-    // Create interactions for history
-    const interactions: Interaction[] = questions.map((q, idx) => {
-      const isCorrect = userAnswers[idx] === q.correctAnswer;
-      return {
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        topicId: (q.topicId || 'intro_counting') as TopicId,
-        subSkillId: 'simulation',
-        isCorrect: isCorrect,
-        timeSpentSeconds: timeElapsed / questions.length, // Avg time
-        difficulty: config.difficulty
-      };
-    });
-    // We don't call onComplete immediately, we show results first
   };
 
   const handleExit = () => {
@@ -99,7 +83,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
         <h2 className="text-xl font-bold text-gray-800">Gerando Prova {config.style}...</h2>
         <p className="text-gray-500 mb-2 text-sm">Tópicos: {availableTopics.map(t => t.name).join(', ').slice(0, 50)}...</p>
-        <p className="text-gray-400 text-xs">Aguarde, a IA está criando questões inéditas.</p>
+        <p className="text-gray-400 text-xs">Aguarde, a IA está criando {config.questionCount} questões inéditas.</p>
       </div>
     );
   }
@@ -149,6 +133,12 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
                   <div className="flex items-start gap-3 mb-4">
                      <span className="font-mono text-sm font-bold text-gray-400 mt-1">Q{idx+1}</span>
                      <div className="flex-grow">
+                        {q.source && (
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200 text-[10px] font-bold uppercase tracking-tight">
+                             <Globe className="w-3 h-3" />
+                             {q.source}
+                          </div>
+                        )}
                         <MathRenderer text={q.text} />
                      </div>
                      {isCorrect 
@@ -192,11 +182,11 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
            <Clock className="w-5 h-5 text-gray-400" /> {formatTime(timeElapsed)}
          </h2>
-         <div className="flex gap-1">
+         <div className="flex gap-1 overflow-x-auto max-w-md pb-2">
             {questions.map((_, idx) => (
               <div 
                 key={idx}
-                className={`w-3 h-3 rounded-full ${
+                className={`w-3 h-3 flex-shrink-0 rounded-full ${
                   idx === currentIndex ? 'bg-indigo-600 ring-2 ring-indigo-200' : 
                   userAnswers[idx] ? 'bg-indigo-300' : 'bg-gray-200'
                 }`}
@@ -208,11 +198,18 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
 
       <div className="bg-white rounded-2xl shadow-lg border border-gray-200 min-h-[400px] flex flex-col">
          <div className="p-8 border-b border-gray-100 flex-grow">
-            <div className="flex justify-between mb-6">
+            <div className="flex justify-between items-start mb-6">
               <span className="text-xs font-bold bg-gray-100 text-gray-600 px-3 py-1 rounded-full uppercase tracking-wider">
                 Questão {currentIndex + 1}
               </span>
-              <span className="text-xs font-bold text-indigo-600">{config.style}</span>
+              <div className="text-right">
+                <span className="block text-xs font-bold text-indigo-600">{config.style}</span>
+                {currentQ.source && (
+                   <span className="flex items-center justify-end gap-1 text-[10px] font-bold text-amber-600 mt-1 uppercase">
+                     <Globe className="w-3 h-3" /> {currentQ.source}
+                   </span>
+                )}
+              </div>
             </div>
             
             <div className="text-lg text-gray-900 leading-relaxed mb-8">
@@ -222,7 +219,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, available
             <div className="space-y-3">
               {currentQ.options?.map((opt, idx) => {
                  const letter = String.fromCharCode(65 + idx); // A, B, C...
-                 const isSelected = userAnswers[currentIndex] === letter || userAnswers[currentIndex] === opt;
+                 // Check if it's multiple choice or direct match
                  
                  return (
                   <button

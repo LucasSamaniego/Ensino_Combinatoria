@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { SimulationConfig, Difficulty } from '../types';
 import { GraduationCap, Briefcase, Award, Crosshair } from 'lucide-react';
@@ -14,7 +15,7 @@ const SimulationHub: React.FC<SimulationHubProps> = ({ onSelect }) => {
       title: 'Fixação Escolar',
       description: 'Questões diretas para consolidar conceitos básicos e intermediários.',
       style: 'School',
-      questionCount: 5,
+      questionCount: 10,
       difficulty: Difficulty.BASIC
     },
     {
@@ -22,15 +23,15 @@ const SimulationHub: React.FC<SimulationHubProps> = ({ onSelect }) => {
       title: 'Concursos Públicos',
       description: 'Foco em bancas como FGV e Cesgranrio. Situações-problema e lógica.',
       style: 'Concurso',
-      questionCount: 5,
+      questionCount: 10,
       difficulty: Difficulty.INTERMEDIATE
     },
     {
       id: 'sim_olympiad',
-      title: 'Olimpíadas (OBMEP/OBM)',
-      description: 'Desafios criativos que exigem raciocínio fora da caixa, não apenas fórmulas.',
+      title: 'Olimpíadas Mundiais',
+      description: 'Desafios de raciocínio lógico baseados em competições do Brasil (OBMEP), Rússia, China e EUA (AMC).',
       style: 'Olympiad',
-      questionCount: 4,
+      questionCount: 10,
       difficulty: Difficulty.ADVANCED
     },
     {
@@ -38,7 +39,7 @@ const SimulationHub: React.FC<SimulationHubProps> = ({ onSelect }) => {
       title: 'Elite: ITA / IME',
       description: 'O nível mais alto. Questões complexas do estilo militar e engenharia de ponta.',
       style: 'Military',
-      questionCount: 3,
+      questionCount: 10,
       difficulty: Difficulty.OLYMPIAD
     }
   ];
@@ -69,7 +70,7 @@ const SimulationHub: React.FC<SimulationHubProps> = ({ onSelect }) => {
         <h2 className="text-3xl font-bold text-gray-900 mb-4">Simulados Específicos</h2>
         <p className="text-gray-500">
           Escolha um modo de prova para testar seus conhecimentos em cenários reais.
-          Ao contrário da prática adaptativa, aqui você resolve uma bateria de questões e recebe a nota ao final.
+          Todos os simulados contêm 10 questões e geram nota ao final.
         </p>
       </div>
 
