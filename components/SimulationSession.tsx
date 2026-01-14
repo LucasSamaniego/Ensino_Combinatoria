@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { SimulationConfig, Question, Interaction, TopicId } from '../types';
 import { generateSimulationQuestions } from '../services/geminiService';
@@ -6,11 +7,12 @@ import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, AlertTriangle } from 
 
 interface SimulationSessionProps {
   config: SimulationConfig;
+  availableTopics: { id: TopicId; name: string }[]; // Tópicos do módulo atual para restringir o simulado
   onComplete: (interactions: Interaction[]) => void;
   onCancel: () => void;
 }
 
-const SimulationSession: React.FC<SimulationSessionProps> = ({ config, onComplete, onCancel }) => {
+const SimulationSession: React.FC<SimulationSessionProps> = ({ config, availableTopics, onComplete, onCancel }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -24,14 +26,17 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, onComplet
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const qs = await generateSimulationQuestions(config);
+      // Extrai os nomes dos tópicos para passar como contexto ao gerador
+      const topicNames = availableTopics.map(t => t.name);
+      const qs = await generateSimulationQuestions(config, topicNames);
+      
       setQuestions(qs);
       setUserAnswers(new Array(qs.length).fill(''));
       setStartTime(Date.now());
       setLoading(false);
     };
     load();
-  }, [config]);
+  }, [config, availableTopics]);
 
   useEffect(() => {
     let interval: any;
@@ -93,7 +98,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({ config, onComplet
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
         <h2 className="text-xl font-bold text-gray-800">Gerando Prova {config.style}...</h2>
-        <p className="text-gray-500">Preparando questões desafiadoras.</p>
+        <p className="text-gray-500 mb-2 text-sm">Tópicos: {availableTopics.map(t => t.name).join(', ').slice(0, 50)}...</p>
+        <p className="text-gray-400 text-xs">Aguarde, a IA está criando questões inéditas.</p>
       </div>
     );
   }

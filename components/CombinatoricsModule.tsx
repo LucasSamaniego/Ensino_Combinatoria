@@ -7,6 +7,8 @@ import {
   SimulationConfig
 } from '../types';
 import { 
+  BASIC_MATH_TOPICS,
+  COMBINATORICS_TOPICS,
   MATH_TOPICS,
   CONCURSOS_TOPICS
 } from '../constants';
@@ -24,14 +26,15 @@ import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
 
-import { LayoutDashboard, Target, BarChart2, Brain, Sparkles, ArrowLeft, Loader2, Book, Scale } from 'lucide-react';
+import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
   onExit: () => void;
   category: 'math' | 'concursos';
+  subCategory?: string; // 'basic' | 'combinatorics' | undefined
 }
 
-const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category }) => {
+const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category, subCategory }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('dashboard');
@@ -40,7 +43,18 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
   const [progress, setProgress] = useState<UserProgress>(getEmptyProgress());
 
-  const currentTopics = category === 'math' ? MATH_TOPICS : CONCURSOS_TOPICS;
+  // Determine which topics to show based on category and subCategory
+  const getCurrentTopics = () => {
+    if (category === 'math') {
+      if (subCategory === 'basic') return BASIC_MATH_TOPICS;
+      if (subCategory === 'combinatorics') return COMBINATORICS_TOPICS;
+      return MATH_TOPICS; // Fallback
+    }
+    return CONCURSOS_TOPICS;
+  };
+
+  const currentTopics = getCurrentTopics();
+  const moduleTitle = subCategory === 'basic' ? 'Matemática Básica' : (subCategory === 'combinatorics' ? 'Análise Combinatória' : (category === 'math' ? 'Matemática' : 'Concursos'));
 
   useEffect(() => {
     if (user) {
@@ -48,18 +62,13 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
       const data = loadUserProgress(user.uid);
       setProgress(data);
       
-      // Se mudar de categoria e as skills específicas dessa categoria estiverem zeradas, forçar nivelamento
-      const categorySkills = currentTopics.map(t => t.id);
-      const hasAnyProgress = categorySkills.some(id => data.skills[id]?.totalAttempts > 0);
+      // Removido redirecionamento automático para 'placement'.
+      // O padrão é sempre o dashboard. O usuário pode acessar o nivelamento pela aba.
+      setView('dashboard');
       
-      if (!data.hasCompletedPlacement || !hasAnyProgress) {
-        setView('placement');
-      } else {
-        setView('dashboard');
-      }
       setLoading(false);
     }
-  }, [user, category]);
+  }, [user, category, subCategory]);
 
   useEffect(() => {
     if (user && !loading) {
@@ -69,15 +78,23 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
 
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
-    const initialMastery = correctCount >= 2 ? 0.45 : 0.15; 
+    // Ajuste simples de proficiência baseado no teste
+    // Se acertou muito, começa com 0.65 (Advanced/Intermediate), se pouco, 0.15 (Basic)
+    const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
 
     setProgress(prev => {
       const newSkills = { ...prev.skills };
-      // Atualizar apenas as skills da categoria atual
+      
+      // Atualiza apenas os tópicos deste módulo
       currentTopics.forEach(topic => {
-        newSkills[topic.id].masteryProbability = initialMastery;
+        // Se a skill já tiver um mastery maior, mantemos (para não regredir alunos que refazem o teste)
+        // A menos que queiramos permitir reset. Aqui assumimos atualização se for melhor ou se for o primeiro.
+        const currentM = newSkills[topic.id].masteryProbability;
+        const newM = Math.max(currentM, initialMastery);
+
+        newSkills[topic.id].masteryProbability = newM;
         topic.subSkills.forEach(sub => {
-          newSkills[sub.id].masteryProbability = initialMastery;
+          newSkills[sub.id].masteryProbability = newM;
         });
       });
 
@@ -152,26 +169,33 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
                   {category === 'math' ? <Book className="w-4 h-4" /> : <Scale className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h2 className="font-bold text-sm tracking-tight">{category === 'math' ? 'Matemática Adaptativa' : 'Concursos Públicos'}</h2>
+                  <h2 className="font-bold text-sm tracking-tight">{moduleTitle}</h2>
                   <span className="text-[10px] text-slate-400 uppercase font-black">Módulo Ativo</span>
                 </div>
              </div>
           </div>
           
-          <div className="flex gap-2">
-            <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`}><LayoutDashboard className="w-5 h-5" /></button>
-            <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`}><Target className="w-5 h-5" /></button>
-            <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`}>
+          <div className="flex gap-1 md:gap-2 overflow-x-auto">
+            <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
+            <button onClick={() => setView('placement')} className={`p-2 rounded-lg ${view === 'placement' ? 'bg-slate-100' : ''}`} title="Teste de Nivelamento"><GraduationCap className="w-5 h-5" /></button>
+            <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`} title="Simulados"><Target className="w-5 h-5" /></button>
+            <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`} title="Revisão">
               <Brain className="w-5 h-5" />
               {dueCards.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
             </button>
-            <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`}><BarChart2 className="w-5 h-5" /></button>
+            <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`} title="Relatórios"><BarChart2 className="w-5 h-5" /></button>
           </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto p-4 py-8">
-        {view === 'placement' && <PlacementTest category={category} onComplete={handlePlacementComplete} />}
+        {view === 'placement' && (
+          <PlacementTest 
+            category={category} 
+            subCategory={subCategory}
+            onComplete={handlePlacementComplete} 
+          />
+        )}
         {view === 'dashboard' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentTopics.map(topic => (
@@ -183,6 +207,11 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
                 onClick={handleTopicSelect}
               />
             ))}
+            {currentTopics.length === 0 && (
+              <div className="col-span-full text-center text-gray-400 py-12">
+                Nenhum tópico encontrado para este módulo.
+              </div>
+            )}
           </div>
         )}
         {view === 'practice' && activeTopic && (
@@ -198,7 +227,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
         )}
         {view === 'simulations' && <SimulationHub onSelect={handleSimulationStart} />}
         {view === 'simulation_session' && activeSimulation && (
-          <SimulationSession config={activeSimulation} onComplete={handleSimulationComplete} onCancel={() => setView('simulations')} />
+          <SimulationSession 
+            config={activeSimulation} 
+            availableTopics={currentTopics}
+            onComplete={handleSimulationComplete} 
+            onCancel={() => setView('simulations')} 
+          />
         )}
         {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}
         {view === 'report' && <ReportView history={progress.history} onBack={() => setView('dashboard')} />}

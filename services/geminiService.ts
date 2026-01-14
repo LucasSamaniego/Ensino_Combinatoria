@@ -27,18 +27,33 @@ export const generateProblem = async (
   let constraints = "";
   
   if (category === 'math') {
-    persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
-    constraints = `
-      - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
-      - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
-      - CONTEÚDO: Exclusivamente Matemática/Combinatória. Proibido qualquer tema de Direito ou Concursos.
-    `;
+    // Lógica diferenciada para Matemática Básica vs Combinatória Avançada
+    if (topicId === TopicId.BASIC_ARITHMETIC) {
+      persona = "Você é um especialista em Didática da Matemática Fundamental, focado em Neurociência da Aprendizagem.";
+      constraints = `
+        - OBJETIVO: Ensinar tabuada através de Padrões, Lógica e Macetes, NÃO decoreba pura.
+        - ESTILO: Lúdico, encorajador e visual.
+        - PROIBIDO: Usar a didática do Professor Morgado ou termos complexos de Análise Combinatória.
+        - ESTRATÉGIAS OBRIGATÓRIAS:
+          1. Use a propriedade comutativa (ex: 7x8 é igual a 8x7).
+          2. Explique padrões visuais (ex: tabuada do 9 e a soma dos dígitos).
+          3. Use decomposição (ex: 6x8 é 5x8 + 1x8).
+        - VISUALIZAÇÃO: Se possível, use o tipo 'slots' para mostrar grupos ou 'none'.
+      `;
+    } else {
+      persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
+      constraints = `
+        - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
+        - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
+        - CONTEÚDO: Exclusivamente Matemática/Combinatória avançada. Proibido temas de Direito ou Concursos.
+      `;
+    }
   } else {
     persona = "Você é um especialista em Concursos Públicos de alto nível (Juiz, Auditor, Delegado).";
     constraints = `
       - FOCO: Questões reais de bancas examinadoras (FGV, CESPE/Cebraspe, FCC, Vunesp).
       - REGRAS: Você DEVE incluir o nome da banca no campo "banca".
-      - CONTEÚDO: Exclusivamente o tópico de Direito ou Raciocínio Lógico solicitado. Proibido temas acadêmicos de olimpíadas de matemática.
+      - CONTEÚDO: Exclusivamente o tópico de Direito ou Raciocínio Lógico solicitado.
       - ESTILO: Formal e técnico conforme a jurisprudência e doutrina dominante.
     `;
   }
@@ -58,12 +73,12 @@ export const generateProblem = async (
 
     Retorne APENAS o JSON no esquema:
     {
-      "text": "Enunciado da questão...",
+      "text": "Enunciado da questão (foque no macete/estratégia se for Tabuada)...",
       "options": ["A", "B", "C", "D", "E"],
       "correctAnswer": "A opção exata",
-      "explanation": "Resolução detalhada...",
-      "hints": ["Dica 1", "Dica 2"],
-      "miniTheory": "Breve base teórica...",
+      "explanation": "Resolução focada no 'como pensar'...",
+      "hints": ["Dica estratégica 1", "Dica estratégica 2"],
+      "miniTheory": "Breve explicação do padrão ou macete...",
       "banca": "Nome da Banca (ex: FGV 2024) - Obrigatorio se for concurso",
       "visualization": { "type": "slots|circular|venn|urn|none", "data": {...}, "label": "..." }
     }
@@ -144,19 +159,27 @@ export const generateProblem = async (
   }
 };
 
-export const generatePlacementQuestions = async (category: 'math' | 'concursos'): Promise<Question[]> => {
-  const persona = category === 'math' 
-    ? "Professor Morgado (Matemática Pura)" 
-    : "Especialista em Bancas de Concursos (FGV/CESPE)";
-    
-  const contentFilter = category === 'math'
-    ? "Gere 4 questões apenas de Análise Combinatória e PFC."
-    : "Gere 4 questões de Direito (Adm, Const, Penal) e Raciocínio Lógico de provas reais.";
+export const generatePlacementQuestions = async (category: 'math' | 'concursos', subCategory?: string): Promise<Question[]> => {
+  let persona = "";
+  let contentFilter = "";
+  
+  if (category === 'math') {
+    if (subCategory === 'basic') {
+      persona = "Especialista em Ensino Fundamental e Aritmética.";
+      contentFilter = "Gere 4 questões de Nivelamento focadas em: Tabuada, operações básicas, cálculo mental e padrões numéricos. O nível deve progredir do muito fácil ao médio.";
+    } else {
+      persona = "Professor Morgado (Matemática Discreta).";
+      contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
+    }
+  } else {
+    persona = "Especialista em Bancas de Concursos (FGV/CESPE).";
+    contentFilter = "Gere 4 questões de Direito (Adm, Const, Penal) e Raciocínio Lógico de provas reais.";
+  }
 
   const prompt = `
-    Crie um Teste de Nivelamento para a área de ${category}.
+    Crie um Teste de Nivelamento (Diagnostic Test).
     Estilo: ${persona}.
-    ${contentFilter}
+    Conteúdo: ${contentFilter}
     
     ${category === 'concursos' ? 'Identifique a banca de cada questão.' : ''}
     ${LATEX_INSTRUCTION}
@@ -209,9 +232,21 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos')
   }
 }
 
-export const generateSimulationQuestions = async (config: SimulationConfig): Promise<Question[]> => {
+export const generateSimulationQuestions = async (config: SimulationConfig, contextTopics?: string[]): Promise<Question[]> => {
   const { style, questionCount, difficulty } = config;
-  const prompt = `Gere um SIMULADO de ${questionCount} questões no estilo ${style} nível ${difficulty}. Se for Concurso, cite bancas como FGV ou CESPE. Retorne JSON Array.`;
+  
+  // Constroi string de restrição de tópicos
+  const topicRestriction = contextTopics && contextTopics.length > 0
+    ? `RESTRIÇÃO DE CONTEÚDO: As questões DEVEM ser EXCLUSIVAMENTE sobre os seguintes tópicos: ${contextTopics.join(', ')}.`
+    : '';
+
+  const prompt = `
+    Gere um SIMULADO de ${questionCount} questões no estilo ${style} nível ${difficulty}.
+    ${topicRestriction}
+    Se for Concurso, cite bancas como FGV ou CESPE.
+    Retorne JSON Array.
+    ${LATEX_INSTRUCTION}
+  `;
   
   try {
     const response = await ai.models.generateContent({ 

@@ -22,7 +22,22 @@ export const EXPECTED_TIME = {
   [Difficulty.OLYMPIAD]: 400
 };
 
-export const MATH_TOPICS = [
+// --- MÓDULOS DE MATEMÁTICA ---
+
+export const BASIC_MATH_TOPICS = [
+  {
+    id: TopicId.BASIC_ARITHMETIC,
+    name: '0. Matemática Básica e Tabuada',
+    description: 'Estratégias de memorização, padrões numéricos e atalhos mentais.',
+    subSkills: [
+      { id: 'mult_tables_1_5', name: 'Tabuada (1 ao 5) e Padrões', parentId: TopicId.BASIC_ARITHMETIC },
+      { id: 'mult_tables_6_9', name: 'Tabuada (6 ao 9) e Macetes', parentId: TopicId.BASIC_ARITHMETIC },
+      { id: 'mult_mental_tricks', name: 'Truques de Cálculo Mental', parentId: TopicId.BASIC_ARITHMETIC }
+    ]
+  }
+];
+
+export const COMBINATORICS_TOPICS = [
   { 
     id: TopicId.INTRO_COUNTING, 
     name: '1. Princípios Básicos', 
@@ -30,7 +45,6 @@ export const MATH_TOPICS = [
     subSkills: [
       { id: 'pfc_morgado', name: 'Princípio Fundamental da Contagem (PFC)', parentId: TopicId.INTRO_COUNTING },
       { id: 'pfc_restrictions', name: 'Problemas com Restrições (Onde começar?)', parentId: TopicId.INTRO_COUNTING },
-      // Fix: Changed INTRO_CONTENT to INTRO_COUNTING to match the TopicId enum
       { id: 'pfc_circular_logic', name: 'Lógica de Formação de Conjuntos', parentId: TopicId.INTRO_COUNTING },
     ]
   },
@@ -65,6 +79,11 @@ export const MATH_TOPICS = [
     ]
   }
 ];
+
+// Lista unificada para o sistema de armazenamento/progresso
+export const MATH_TOPICS = [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS];
+
+// --- MÓDULOS DE CONCURSOS ---
 
 export const CONCURSOS_TOPICS = [
   {

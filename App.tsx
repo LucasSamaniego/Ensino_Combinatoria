@@ -9,11 +9,9 @@ import {
   Gavel, 
   BookOpen,
   Scale,
-  BrainCircuit,
-  ShieldCheck,
+  Binary,
   Cpu,
-  Brain,
-  Binary
+  Divide
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -27,6 +25,7 @@ const MainApp: React.FC = () => {
   const { user, loading, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>('hub');
   const [activeCategory, setActiveCategory] = useState<Category>('math');
+  const [activeSubCategory, setActiveSubCategory] = useState<string | undefined>(undefined);
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-sm uppercase tracking-widest text-slate-400">Loading System...</div>;
   if (!user) return <LoginScreen />;
@@ -34,8 +33,9 @@ const MainApp: React.FC = () => {
   // Safeguard for user name to prevent "split of undefined" error
   const firstName = user?.name ? user.name.split(' ')[0] : 'Estudante';
 
-  const enterModule = (cat: Category) => {
+  const enterModule = (cat: Category, sub?: string) => {
     setActiveCategory(cat);
+    setActiveSubCategory(sub);
     setCurrentView('module_active');
   };
 
@@ -150,9 +150,24 @@ const MainApp: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isMath ? (
             <>
-              {/* Card de Análise Combinatória (Restaurado e Mantido) */}
+              {/* Matemática Básica (Novo Card) */}
               <button 
-                onClick={() => enterModule('math')}
+                onClick={() => enterModule('math', 'basic')}
+                className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-sky-500 hover:ring-2 hover:ring-sky-200 transition-all text-left shadow-sm hover:shadow-md"
+              >
+                 <div className="w-10 h-10 bg-sky-100 text-sky-600 rounded-lg flex items-center justify-center mb-4">
+                    <Divide className="w-5 h-5" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 mb-2">Matemática Básica</h3>
+                 <p className="text-sm text-slate-600 mb-6">Tabuada, operações fundamentais e cálculo mental.</p>
+                 <div className="flex items-center text-[10px] font-black uppercase tracking-widest text-sky-600">
+                   Entrar no Módulo <ChevronRight className="w-3 h-3 ml-1" />
+                 </div>
+              </button>
+
+              {/* Análise Combinatória */}
+              <button 
+                onClick={() => enterModule('math', 'combinatorics')}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-200 transition-all text-left shadow-sm hover:shadow-md"
               >
                  <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mb-4">
@@ -165,7 +180,7 @@ const MainApp: React.FC = () => {
                  </div>
               </button>
 
-              {/* Card de Geometria (Exemplo de módulo bloqueado) */}
+              {/* Geometria Bloqueado */}
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left opacity-60 cursor-not-allowed">
                  <div className="flex justify-between items-start mb-4">
                     <div className="w-10 h-10 bg-slate-200 text-slate-400 rounded-lg flex items-center justify-center">
@@ -217,7 +232,11 @@ const MainApp: React.FC = () => {
       {currentView === 'subject_math' && renderSubjectDetail('math')}
       {currentView === 'subject_concursos' && renderSubjectDetail('concursos')}
       {currentView === 'module_active' && (
-        <CombinatoricsModule category={activeCategory} onExit={() => setCurrentView(`subject_${activeCategory}` as ViewState)} />
+        <CombinatoricsModule 
+          category={activeCategory} 
+          subCategory={activeSubCategory}
+          onExit={() => setCurrentView(`subject_${activeCategory}` as ViewState)} 
+        />
       )}
       {currentView === 'online_classroom' && (
         <OnlineClassroom onExit={() => setCurrentView(`subject_${activeCategory}` as ViewState)} />

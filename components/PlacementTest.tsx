@@ -7,6 +7,7 @@ import { Loader2, CheckCircle, ArrowRight, RefreshCw, Building2 } from 'lucide-r
 
 interface PlacementTestProps {
   category: 'math' | 'concursos';
+  subCategory?: string;
   onComplete: (results: Interaction[]) => void;
 }
 
@@ -26,7 +27,7 @@ const FALLBACK_QUESTIONS: Question[] = [
   }
 ];
 
-const PlacementTest: React.FC<PlacementTestProps> = ({ category, onComplete }) => {
+const PlacementTest: React.FC<PlacementTestProps> = ({ category, subCategory, onComplete }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -35,12 +36,13 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ category, onComplete }) =
 
   useEffect(() => {
     loadTest();
-  }, [category]);
+  }, [category, subCategory]);
 
   const loadTest = async () => {
     setLoading(true);
     try {
-      const qs = await generatePlacementQuestions(category);
+      // Passa a subcategoria para refinar o teste (Ex: Tabuada vs Combinatória)
+      const qs = await generatePlacementQuestions(category, subCategory);
       if (qs && qs.length > 0) {
         setQuestions(qs);
       } else {
@@ -84,8 +86,13 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ category, onComplete }) =
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-        <h2 className="text-xl font-bold text-gray-800">Preparando Nivelamento de {category === 'math' ? 'Matemática' : 'Concursos'}...</h2>
-        <p className="text-gray-500">A IA está selecionando questões para identificar seu perfil.</p>
+        <h2 className="text-xl font-bold text-gray-800">
+          Preparando Nivelamento
+        </h2>
+        <p className="text-gray-500 mb-2">
+           {subCategory === 'basic' ? 'Foco: Tabuada e Aritmética' : (subCategory === 'combinatorics' ? 'Foco: Análise Combinatória' : 'Avaliando conhecimentos gerais')}
+        </p>
+        <p className="text-xs text-gray-400">A IA está selecionando questões para identificar seu perfil.</p>
       </div>
     );
   }
@@ -107,7 +114,7 @@ const PlacementTest: React.FC<PlacementTestProps> = ({ category, onComplete }) =
         </div>
         
         <p className="text-gray-600 mb-6 font-medium">
-          Identificando sua base em {category === 'math' ? 'Exatas' : 'Carreiras Públicas'}.
+          Identificando sua base em {subCategory === 'basic' ? 'Matemática Básica' : (subCategory === 'combinatorics' ? 'Combinatória' : category)}.
         </p>
 
         {currentQ.banca && (
