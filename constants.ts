@@ -27,12 +27,32 @@ export const EXPECTED_TIME = {
 export const BASIC_MATH_TOPICS = [
   {
     id: TopicId.BASIC_ARITHMETIC,
-    name: '0. Matemática Básica e Tabuada',
+    name: '0. Aritmética e Tabuada',
     description: 'Estratégias de memorização, padrões numéricos e atalhos mentais.',
     subSkills: [
       { id: 'mult_tables_1_5', name: 'Tabuada (1 ao 5) e Padrões', parentId: TopicId.BASIC_ARITHMETIC },
       { id: 'mult_tables_6_9', name: 'Tabuada (6 ao 9) e Macetes', parentId: TopicId.BASIC_ARITHMETIC },
       { id: 'mult_mental_tricks', name: 'Truques de Cálculo Mental', parentId: TopicId.BASIC_ARITHMETIC }
+    ]
+  },
+  {
+    id: TopicId.BASIC_SETS,
+    name: '1. Expressões e Conjuntos',
+    description: 'Ordem das operações e linguagem dos conjuntos.',
+    subSkills: [
+      { id: 'num_expressions', name: 'Expressões Numéricas (Ordem das Op.)', parentId: TopicId.BASIC_SETS },
+      { id: 'sets_intro', name: 'Introdução a Conjuntos', parentId: TopicId.BASIC_SETS },
+      { id: 'number_sets', name: 'Conjuntos Numéricos (N, Z, Q, R)', parentId: TopicId.BASIC_SETS }
+    ]
+  },
+  {
+    id: TopicId.BASIC_ALGEBRA,
+    name: '2. Equações e Inequações',
+    description: 'Fundamentos da álgebra elementar e resolução de problemas.',
+    subSkills: [
+      { id: 'eq_1_degree', name: 'Equações de 1º Grau', parentId: TopicId.BASIC_ALGEBRA },
+      { id: 'ineq_1_degree', name: 'Inequações de 1º Grau', parentId: TopicId.BASIC_ALGEBRA },
+      { id: 'problem_solving_eq', name: 'Problemas com Equações', parentId: TopicId.BASIC_ALGEBRA }
     ]
   }
 ];

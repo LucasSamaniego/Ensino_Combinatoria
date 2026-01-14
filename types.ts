@@ -9,6 +9,8 @@ export enum Difficulty {
 export enum TopicId {
   // Matemática Básica
   BASIC_ARITHMETIC = 'basic_arithmetic',
+  BASIC_SETS = 'basic_sets',
+  BASIC_ALGEBRA = 'basic_algebra',
 
   // Matemática - Combinatória
   INTRO_COUNTING = 'intro_counting',

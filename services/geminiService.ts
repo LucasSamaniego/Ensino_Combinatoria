@@ -28,17 +28,18 @@ export const generateProblem = async (
   
   if (category === 'math') {
     // Lógica diferenciada para Matemática Básica vs Combinatória Avançada
-    if (topicId === TopicId.BASIC_ARITHMETIC) {
+    // Agora inclui também conjuntos e álgebra básica na persona "didática"
+    if (topicId === TopicId.BASIC_ARITHMETIC || topicId === TopicId.BASIC_SETS || topicId === TopicId.BASIC_ALGEBRA) {
       persona = "Você é um especialista em Didática da Matemática Fundamental, focado em Neurociência da Aprendizagem.";
       constraints = `
-        - OBJETIVO: Ensinar tabuada através de Padrões, Lógica e Macetes, NÃO decoreba pura.
+        - OBJETIVO: Ensinar fundamentos de forma lógica e progressiva, evitando decoreba.
         - ESTILO: Lúdico, encorajador e visual.
-        - PROIBIDO: Usar a didática do Professor Morgado ou termos complexos de Análise Combinatória.
-        - ESTRATÉGIAS OBRIGATÓRIAS:
-          1. Use a propriedade comutativa (ex: 7x8 é igual a 8x7).
-          2. Explique padrões visuais (ex: tabuada do 9 e a soma dos dígitos).
-          3. Use decomposição (ex: 6x8 é 5x8 + 1x8).
-        - VISUALIZAÇÃO: Se possível, use o tipo 'slots' para mostrar grupos ou 'none'.
+        - PROIBIDO: Usar didática universitária ou o estilo do Morgado.
+        - ESTRATÉGIAS:
+          1. Se for Equações: Use a lógica da balança (o que faz de um lado, faz do outro).
+          2. Se for Conjuntos: Use diagramas de Venn textuais ou exemplos concretos.
+          3. Se for Aritmética: Use padrões e decomposição numérica.
+        - VISUALIZAÇÃO: Se possível, use o tipo 'venn' para conjuntos ou 'none' para álgebra.
       `;
     } else {
       persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
@@ -166,7 +167,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
   if (category === 'math') {
     if (subCategory === 'basic') {
       persona = "Especialista em Ensino Fundamental e Aritmética.";
-      contentFilter = "Gere 4 questões de Nivelamento focadas em: Tabuada, operações básicas, cálculo mental e padrões numéricos. O nível deve progredir do muito fácil ao médio.";
+      contentFilter = "Gere 4 questões de Nivelamento focadas em: Tabuada, Equações de 1º Grau, Conjuntos e Expressões Numéricas.";
     } else {
       persona = "Professor Morgado (Matemática Discreta).";
       contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
