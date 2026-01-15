@@ -1,20 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Plataforma de Ensino de Análise Combinatória (BKT)
 
-# Run and deploy your AI Studio app
+Este é um sistema de ensino inteligente que utiliza **Bayesian Knowledge Tracing (BKT)** para avaliar a habilidade do aluno em tempo real e adaptar o conteúdo dinamicamente.
 
-This contains everything you need to run your app locally.
+## Funcionalidades Principais
+- **Avaliação Adaptativa**: O sistema calcula a probabilidade de maestria em cada sub-habilidade usando o algoritmo BKT.
+- **Gerador de Problemas com IA**: Utiliza o Google Gemini para criar questões inéditas baseadas no nível do aluno (Básico até Olímpico).
+- **Revisão Espaçada (SRS)**: Sistema de flashcards baseado no algoritmo SuperMemo-2 (SM-2).
+- **Estúdio de Aula**: Ambiente para professores com Manim (animações matemáticas) e integração de câmera.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1K_8qDGvNINAvHppsPqFlTtObJ-gIdjlJ
+## Desenvolvimento Local
+1. Instale as dependências: `npm install`
+2. Execute o projeto: `npm run dev`
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Estrutura do Sistema
+- `services/tracingService.ts`: Implementação do motor de inferência Bayesiana.
+- `services/geminiService.ts`: Orquestração de prompts para geração de problemas matemáticos.
+- `components/`: Componentes modulares da interface.
