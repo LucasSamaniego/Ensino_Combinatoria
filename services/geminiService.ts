@@ -7,11 +7,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!aiInstance) {
-    const apiKey = process.env.API_KEY || "";
-    if (!apiKey) {
-      console.warn("Gemini API Key is missing. AI features will fail gracefully.");
-    }
-    aiInstance = new GoogleGenAI({ apiKey });
+    aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
   return aiInstance;
 };
@@ -172,10 +168,10 @@ export const generateProblem = async (
       subSkillId,
       subSkillName,
       difficulty: Difficulty.BASIC,
-      text: "Erro ao gerar questão. Por favor, tente novamente.",
+      text: "Erro ao conectar com a IA. Verifique a chave de API.",
       options: ["-", "-", "-", "-"],
       correctAnswer: "-",
-      explanation: "Erro técnico de conexão com a IA.",
+      explanation: "Verifique se a variável de ambiente API_KEY está configurada corretamente.",
       banca: "Sistema"
     };
   }

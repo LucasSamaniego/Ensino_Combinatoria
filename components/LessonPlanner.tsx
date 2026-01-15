@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Loader2, BookOpen, Send } from 'lucide-react';
@@ -12,6 +11,7 @@ const LessonPlanner: React.FC = () => {
   const generateLesson = async () => {
     if (!topic) return;
     setLoading(true);
+    // Use process.env.API_KEY as per Google GenAI guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
@@ -31,7 +31,7 @@ const LessonPlanner: React.FC = () => {
       // Garantir que não passamos undefined para o estado que espera string | null
       setLesson(response.text || "Não foi possível gerar o conteúdo da aula.");
     } catch (e) {
-      setLesson("Erro ao gerar roteiro. Tente novamente.");
+      setLesson("Erro ao gerar roteiro. Verifique se a API_KEY está configurada.");
     } finally {
       setLoading(false);
     }

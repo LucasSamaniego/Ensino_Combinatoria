@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Sparkles, Loader2, Play, Info, Monitor } from 'lucide-react';
@@ -30,6 +29,7 @@ const ManimStudio: React.FC<ManimStudioProps> = ({ isEmbedded }) => {
     setSteps([]);
     setIsPlaying(false);
 
+    // Use process.env.API_KEY as per Google GenAI guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
@@ -77,6 +77,7 @@ const ManimStudio: React.FC<ManimStudioProps> = ({ isEmbedded }) => {
       setTimeout(() => setIsPlaying(true), 500);
     } catch (e) {
       console.error(e);
+      alert("Erro ao gerar animação. Verifique a API_KEY.");
     } finally {
       setLoading(false);
     }
