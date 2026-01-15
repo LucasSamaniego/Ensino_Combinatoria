@@ -4,7 +4,8 @@ import {
   UserProgress, 
   TopicId, 
   Interaction,
-  SimulationConfig
+  SimulationConfig,
+  Question
 } from '../types';
 import { 
   BASIC_MATH_TOPICS,
@@ -25,8 +26,9 @@ import PlacementTest from './PlacementTest';
 import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
+import FavoritesView from './FavoritesView';
 
-import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap, Star } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
   onExit: () => void;
@@ -37,7 +39,7 @@ interface CombinatoricsModuleProps {
 const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category, subCategory }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
   
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
@@ -153,6 +155,31 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     });
   };
 
+  // Favorites Logic
+  const handleToggleFavorite = (question: Question) => {
+    setProgress(prev => {
+      const isFav = prev.favorites.some(q => q.id === question.id);
+      let newFavs;
+      if (isFav) {
+        newFavs = prev.favorites.filter(q => q.id !== question.id);
+      } else {
+        newFavs = [question, ...prev.favorites];
+      }
+      return { ...prev, favorites: newFavs };
+    });
+  };
+
+  const handleRemoveFavorite = (questionId: string) => {
+    setProgress(prev => ({
+      ...prev,
+      favorites: prev.favorites.filter(q => q.id !== questionId)
+    }));
+  };
+
+  const isFavorite = (questionId: string) => {
+    return progress.favorites.some(q => q.id === questionId);
+  }
+
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
   const dueCards = getCardsDue(progress.flashcards);
@@ -177,6 +204,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
           
           <div className="flex gap-1 md:gap-2 overflow-x-auto">
             <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
+            <button onClick={() => setView('favorites')} className={`p-2 rounded-lg ${view === 'favorites' ? 'bg-slate-100' : ''}`} title="Favoritos"><Star className="w-5 h-5" /></button>
             <button onClick={() => setView('placement')} className={`p-2 rounded-lg ${view === 'placement' ? 'bg-slate-100' : ''}`} title="Teste de Nivelamento"><GraduationCap className="w-5 h-5" /></button>
             <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`} title="Simulados"><Target className="w-5 h-5" /></button>
             <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`} title="Revisão">
@@ -194,6 +222,13 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
             category={category} 
             subCategory={subCategory}
             onComplete={handlePlacementComplete} 
+          />
+        )}
+        {view === 'favorites' && (
+          <FavoritesView 
+            favorites={progress.favorites}
+            onRemove={handleRemoveFavorite}
+            onBack={() => setView('dashboard')}
           />
         )}
         {view === 'dashboard' && (
@@ -223,6 +258,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
             userSkills={progress.skills}
             onCompleteQuestion={handleInteractionComplete}
             onBack={() => setView('dashboard')}
+            onToggleFavorite={handleToggleFavorite}
+            isFavorite={isFavorite}
           />
         )}
         {view === 'simulations' && <SimulationHub onSelect={handleSimulationStart} />}

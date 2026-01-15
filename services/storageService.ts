@@ -37,7 +37,8 @@ export const getEmptyProgress = (): UserProgress => {
     hasCompletedPlacement: false,
     skills, 
     history: [],
-    flashcards: []
+    flashcards: [],
+    favorites: []
   };
 };
 
@@ -56,7 +57,10 @@ export const loadUserProgress = (userId: string): UserProgress => {
     const key = `${STORAGE_PREFIX}${userId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Migração segura: garante que favorites existe se carregar um save antigo
+      if (!parsed.favorites) parsed.favorites = [];
+      return parsed;
     }
   } catch (error) {
     console.error('Failed to load progress', error);

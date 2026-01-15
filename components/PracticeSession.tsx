@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { generateProblem } from '../services/geminiService';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2 } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 
@@ -15,6 +15,8 @@ interface PracticeSessionProps {
   userSkills: { [key: string]: SkillState };
   onCompleteQuestion: (interaction: Interaction) => void;
   onBack: () => void;
+  onToggleFavorite: (question: Question) => void;
+  isFavorite: (questionId: string) => boolean;
 }
 
 const PracticeSession: React.FC<PracticeSessionProps> = ({ 
@@ -24,7 +26,9 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   topicSubSkills,
   userSkills, 
   onCompleteQuestion,
-  onBack 
+  onBack,
+  onToggleFavorite,
+  isFavorite
 }) => {
   const [targetSubSkill, setTargetSubSkill] = useState<{id: string, name: string} | null>(null);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -140,6 +144,8 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
 
   if (!targetSubSkill) return <div className="p-8">Carregando...</div>;
 
+  const isCurrentFavorite = question ? isFavorite(question.id) : false;
+
   return (
     <div className="max-w-4xl mx-auto">
       <button onClick={onBack} className="mb-6 flex items-center text-gray-500 hover:text-gray-900 transition-colors">
@@ -162,10 +168,19 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                     <Clock className="w-3 h-3" /> {elapsed}s
                  </div>
                  {question && (
-                   <span className={`text-xs font-bold px-3 py-1 rounded-full border flex items-center gap-1 ${difficultyColor(question.difficulty)}`}>
-                     {question.difficulty === Difficulty.OLYMPIAD && <Award className="w-3 h-3" />}
-                     {question.difficulty}
-                   </span>
+                  <>
+                    <button 
+                      onClick={() => onToggleFavorite(question)}
+                      className={`p-1.5 rounded-full transition-all ${isCurrentFavorite ? 'text-yellow-400 bg-yellow-50 hover:bg-yellow-100' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-50'}`}
+                      title={isCurrentFavorite ? "Remover dos favoritos" : "Favoritar questão"}
+                    >
+                      <Star className={`w-5 h-5 ${isCurrentFavorite ? 'fill-yellow-400' : ''}`} />
+                    </button>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full border flex items-center gap-1 ${difficultyColor(question.difficulty)}`}>
+                      {question.difficulty === Difficulty.OLYMPIAD && <Award className="w-3 h-3" />}
+                      {question.difficulty}
+                    </span>
+                   </>
                  )}
               </div>
             </div>

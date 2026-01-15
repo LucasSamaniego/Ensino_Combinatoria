@@ -127,6 +127,7 @@ export interface UserProgress {
   skills: { [key: string]: SkillState }; 
   history: Interaction[];
   flashcards: Flashcard[]; 
+  favorites: Question[]; // Questões favoritadas pelo usuário
 }
 
 export interface GraphNode {
