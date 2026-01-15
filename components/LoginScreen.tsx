@@ -1,10 +1,9 @@
-
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 const LoginScreen: React.FC = () => {
-  const { signInWithGoogle, loading } = useAuth();
+  const { signInWithGoogle, loading, error } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -21,6 +20,13 @@ const LoginScreen: React.FC = () => {
         </div>
 
         <div className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center justify-center gap-2 mb-4 border border-red-100">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
           <button
             onClick={signInWithGoogle}
             disabled={loading}

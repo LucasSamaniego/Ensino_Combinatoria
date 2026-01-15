@@ -2,17 +2,19 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
-  // Carrega as variáveis de ambiente baseadas no modo atual.
-  // O terceiro parâmetro '' diz para carregar TODAS as variáveis, 
-  // permitindo ler 'API_KEY' mesmo sem o prefixo 'VITE_'.
   const env = loadEnv(mode, '.', '');
 
   return {
     plugins: [react()],
     base: './',
     define: {
-      // Substitui 'process.env.API_KEY' pelo valor real da string durante o build
-      'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || env.API_KEY || "")
+      'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || env.API_KEY || ""),
+      'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || ""),
+      'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || ""),
+      'process.env.FIREBASE_PROJECT_ID': JSON.stringify(env.FIREBASE_PROJECT_ID || ""),
+      'process.env.FIREBASE_STORAGE_BUCKET': JSON.stringify(env.FIREBASE_STORAGE_BUCKET || ""),
+      'process.env.FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(env.FIREBASE_MESSAGING_SENDER_ID || ""),
+      'process.env.FIREBASE_APP_ID': JSON.stringify(env.FIREBASE_APP_ID || "")
     }
   }
 })
