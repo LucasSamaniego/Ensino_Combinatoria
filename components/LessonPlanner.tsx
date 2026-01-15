@@ -28,7 +28,8 @@ const LessonPlanner: React.FC = () => {
           Use português do Brasil e tom inspirador.
         `,
       });
-      setLesson(response.text);
+      // Garantir que não passamos undefined para o estado que espera string | null
+      setLesson(response.text || "Não foi possível gerar o conteúdo da aula.");
     } catch (e) {
       setLesson("Erro ao gerar roteiro. Tente novamente.");
     } finally {
