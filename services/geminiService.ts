@@ -1,9 +1,20 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard } from '../types';
 import { getInitialSRSState } from './srsService';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization to prevent crash on load if API key is missing
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.API_KEY || "";
+    if (!apiKey) {
+      console.warn("Gemini API Key is missing. AI features will fail gracefully.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 const MODEL_FLASH = 'gemini-3-flash-preview';
 const MODEL_REASONING = 'gemini-3-pro-preview';
@@ -93,6 +104,7 @@ export const generateProblem = async (
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -196,6 +208,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
   `;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: MODEL_FLASH,
       contents: prompt,
@@ -290,6 +303,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
   `;
   
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({ 
       model: MODEL_FLASH, 
       contents: prompt, 
@@ -330,6 +344,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
 
 export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]> => {
   const prompt = `Crie 4 Flashcards sobre o tópico ${topicId}. Retorne JSON Array [{front, back}].`;
+  const ai = getAI();
   const response = await ai.models.generateContent({ 
     model: MODEL_FLASH, 
     contents: prompt, 
@@ -359,6 +374,7 @@ export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]>
 
 export const generateFeedbackReport = async (history: Interaction[], role: 'student' | 'teacher'): Promise<ReportData> => {
   const prompt = `Analise o histórico de estudo. Papel: ${role}. Avalie a proficiência. Retorne JSON {summary, strengths, weaknesses, recommendedFocus, knowledgeGraph}.`;
+  const ai = getAI();
   const response = await ai.models.generateContent({ model: MODEL_FLASH, contents: prompt, config: { responseMimeType: "application/json" }});
   const data = JSON.parse(response.text || '{}');
   return {
