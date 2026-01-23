@@ -34,9 +34,10 @@ interface CombinatoricsModuleProps {
   onExit: () => void;
   category: 'math' | 'concursos';
   subCategory?: string; // 'basic' | 'combinatorics' | undefined
+  onUpdateProgress?: (progress: UserProgress) => void;
 }
 
-const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category, subCategory }) => {
+const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category, subCategory, onUpdateProgress }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
@@ -91,26 +92,34 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     const correctCount = results.filter(r => r.isCorrect).length;
     const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
 
-    setProgress(prev => {
-      const newSkills = { ...prev.skills };
+    // Cria o novo objeto de progresso explicitamente
+    const newSkills = { ...progress.skills };
       
-      currentTopics.forEach(topic => {
-        const currentM = newSkills[topic.id].masteryProbability;
-        const newM = Math.max(currentM, initialMastery);
+    currentTopics.forEach(topic => {
+      const currentM = newSkills[topic.id].masteryProbability;
+      const newM = Math.max(currentM, initialMastery);
 
-        newSkills[topic.id].masteryProbability = newM;
-        topic.subSkills.forEach(sub => {
-          newSkills[sub.id].masteryProbability = newM;
-        });
+      newSkills[topic.id].masteryProbability = newM;
+      topic.subSkills.forEach(sub => {
+        newSkills[sub.id].masteryProbability = newM;
       });
-
-      return {
-        ...prev,
-        hasCompletedPlacement: true,
-        skills: newSkills,
-        history: [...prev.history, ...results]
-      };
     });
+
+    const newProgress: UserProgress = {
+      ...progress,
+      hasCompletedPlacement: true,
+      skills: newSkills,
+      history: [...progress.history, ...results]
+    };
+
+    // Atualiza estado local
+    setProgress(newProgress);
+
+    // Sincroniza com o componente Pai (App.tsx) imediatamente para que ele saiba que o nivelamento acabou
+    if (onUpdateProgress) {
+      onUpdateProgress(newProgress);
+    }
+
     setView('dashboard');
   };
 
@@ -119,21 +128,25 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     const hasCards = progress.flashcards.some(c => c.topicId === id);
     if (!hasCards) {
       generateFlashcards(id).then(newCards => {
-        setProgress(prev => ({
-          ...prev,
-          flashcards: [...prev.flashcards, ...newCards]
-        }));
+        const updated = {
+          ...progress,
+          flashcards: [...progress.flashcards, ...newCards]
+        };
+        setProgress(updated);
+        if (onUpdateProgress) onUpdateProgress(updated);
       });
     }
     setView('practice');
   };
 
   const handleInteractionComplete = (interaction: Interaction) => {
-    setProgress(prev => {
-      const newSkills = updateHierarchicalKnowledge(prev.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
-      const newHistory = [...prev.history, interaction];
-      return { ...prev, skills: newSkills, history: newHistory };
-    });
+    const newSkills = updateHierarchicalKnowledge(progress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
+    const newHistory = [...progress.history, interaction];
+    const updated = { ...progress, skills: newSkills, history: newHistory };
+    
+    setProgress(updated);
+    // Opcional: sincronizar a cada interação pode ser pesado, deixamos o useEffect lidar ou passamos se for crítico
+    if (onUpdateProgress) onUpdateProgress(updated);
   };
 
   const handleSimulationStart = (config: SimulationConfig) => {
@@ -142,42 +155,53 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
   };
 
   const handleSimulationComplete = (interactions: Interaction[]) => {
-    interactions.forEach(interaction => handleInteractionComplete(interaction));
+    let currentProgress = { ...progress };
+    interactions.forEach(interaction => {
+       const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
+       const newHistory = [...currentProgress.history, interaction];
+       currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
+    });
+    
+    setProgress(currentProgress);
+    if (onUpdateProgress) onUpdateProgress(currentProgress);
+    
     setView('simulations');
     setActiveSimulation(null);
   };
 
   const handleCardReview = (cardId: string, grade: ReviewGrade) => {
-    setProgress(prev => {
-      const newDeck = prev.flashcards.map(card => {
-        if (card.id === cardId) {
-          return { ...card, srs: calculateNextReview(card.srs, grade) };
-        }
-        return card;
-      });
-      return { ...prev, flashcards: newDeck };
+    const newDeck = progress.flashcards.map(card => {
+      if (card.id === cardId) {
+        return { ...card, srs: calculateNextReview(card.srs, grade) };
+      }
+      return card;
     });
+    const updated = { ...progress, flashcards: newDeck };
+    setProgress(updated);
+    if (onUpdateProgress) onUpdateProgress(updated);
   };
 
   // Favorites Logic
   const handleToggleFavorite = (question: Question) => {
-    setProgress(prev => {
-      const isFav = prev.favorites.some(q => q.id === question.id);
-      let newFavs;
-      if (isFav) {
-        newFavs = prev.favorites.filter(q => q.id !== question.id);
-      } else {
-        newFavs = [question, ...prev.favorites];
-      }
-      return { ...prev, favorites: newFavs };
-    });
+    const isFav = progress.favorites.some(q => q.id === question.id);
+    let newFavs;
+    if (isFav) {
+      newFavs = progress.favorites.filter(q => q.id !== question.id);
+    } else {
+      newFavs = [question, ...progress.favorites];
+    }
+    const updated = { ...progress, favorites: newFavs };
+    setProgress(updated);
+    if (onUpdateProgress) onUpdateProgress(updated);
   };
 
   const handleRemoveFavorite = (questionId: string) => {
-    setProgress(prev => ({
-      ...prev,
-      favorites: prev.favorites.filter(q => q.id !== questionId)
-    }));
+    const updated = {
+      ...progress,
+      favorites: progress.favorites.filter(q => q.id !== questionId)
+    };
+    setProgress(updated);
+    if (onUpdateProgress) onUpdateProgress(updated);
   };
 
   const isFavorite = (questionId: string) => {

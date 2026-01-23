@@ -54,6 +54,16 @@ const MainApp: React.FC = () => {
     }
   };
 
+  // Callback para receber atualizações do módulo filho (CombinatoricsModule)
+  // Isso garante que o pai saiba que o nivelamento foi feito ANTES do usuário sair do módulo
+  const handleProgressUpdate = async (newProgress: UserProgress) => {
+    setUserProgress(newProgress);
+    if (user) {
+      // Salva no storage também para garantir
+      await saveUserProgress(user.uid, newProgress);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-sm uppercase tracking-widest text-slate-400">Loading System...</div>;
   if (!user) return <LoginScreen />;
 
@@ -310,7 +320,8 @@ const MainApp: React.FC = () => {
         <CombinatoricsModule 
           category={activeCategory} 
           subCategory={activeSubCategory}
-          onExit={() => setCurrentView(`subject_${activeCategory}` as ViewState)} 
+          onUpdateProgress={handleProgressUpdate}
+          onExit={() => enterModule(activeCategory)} // Chama enterModule para revalidar se precisa de plano de estudo
         />
       )}
       {currentView === 'online_classroom' && (
