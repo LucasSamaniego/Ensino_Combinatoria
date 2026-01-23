@@ -14,10 +14,9 @@ let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let googleProvider: GoogleAuthProvider | undefined;
 
-// Verifica se a API Key existe e não é vazia antes de tentar inicializar
+// O Firestore (db) foi removido pois agora usaremos MySQL via API REST
 if (firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
   try {
-    // Evita reinicialização se já existir uma instância
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
@@ -25,10 +24,10 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
       prompt: 'select_account'
     });
   } catch (error) {
-    console.error("Erro ao inicializar Firebase:", error);
+    console.error("Erro ao inicializar Firebase Auth:", error);
   }
 } else {
-  console.warn("Configuração do Firebase ausente ou inválida. O login não funcionará.");
+  console.warn("Configuração do Firebase ausente. O login não funcionará.");
 }
 
 export { auth, googleProvider };

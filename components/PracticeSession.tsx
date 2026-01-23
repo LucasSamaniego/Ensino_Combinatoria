@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
-import { generateProblem } from '../services/geminiService';
+import { getSmartQuestion, saveQuestionToLibrary } from '../services/questionDatabase';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PracticeSessionProps {
   category: 'math' | 'concursos';
@@ -30,6 +31,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   onToggleFavorite,
   isFavorite
 }) => {
+  const { user } = useAuth();
   const [targetSubSkill, setTargetSubSkill] = useState<{id: string, name: string} | null>(null);
   const [question, setQuestion] = useState<Question | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,9 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   const [hintsRevealed, setHintsRevealed] = useState(0);
   const [showMiniTheory, setShowMiniTheory] = useState(false);
   const [showFullExplanation, setShowFullExplanation] = useState(false);
+  
+  // Admin/Curator State
+  const [isSavedToLibrary, setIsSavedToLibrary] = useState(false);
   
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsed, setElapsed] = useState(0);
@@ -77,12 +82,14 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
     setHintsRevealed(0);
     setShowMiniTheory(false);
     setShowFullExplanation(false);
+    setIsSavedToLibrary(false);
     setElapsed(0);
 
     const currentMastery = userSkills[subSkill.id]?.masteryProbability || 0.1;
     const difficulty = getDifficultyForMastery(currentMastery);
 
-    const newQuestion = await generateProblem(
+    // Usa o novo serviço híbrido (DB -> IA)
+    const newQuestion = await getSmartQuestion(
       category,
       topicName,
       topicId,
@@ -94,6 +101,13 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
     setQuestion(newQuestion);
     setLoading(false);
     setStartTime(Date.now());
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (question && !isSavedToLibrary) {
+      const success = await saveQuestionToLibrary(question, category);
+      if (success) setIsSavedToLibrary(true);
+    }
   };
 
   useEffect(() => {
@@ -189,7 +203,8 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 animate-pulse">
                   <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
-                  <p>A IA está gerando um desafio personalizado...</p>
+                  <p>Consultando banco de questões...</p>
+                  <p className="text-xs text-gray-300 mt-2">Se necessário, a IA gerará um exercício inédito.</p>
                 </div>
               ) : question ? (
                 <div className="animate-in fade-in duration-500">
@@ -303,9 +318,27 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                           </div>
                         )}
 
-                        <button onClick={pickSubSkill} className="mt-6 w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
-                          Próximo Desafio &rarr;
-                        </button>
+                        <div className="flex gap-4 mt-6">
+                           <button onClick={pickSubSkill} className="flex-1 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
+                             Próximo Desafio &rarr;
+                           </button>
+                           
+                           {/* Botão de Curadoria: Salvar no Banco Público */}
+                           {question.id.length > 20 && !question.id.includes('saved') && ( 
+                             <button 
+                               onClick={handleSaveToLibrary}
+                               disabled={isSavedToLibrary}
+                               className={`px-4 py-3 border rounded-lg transition-all flex items-center justify-center gap-2 ${
+                                 isSavedToLibrary 
+                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                   : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+                               }`}
+                               title="Salvar esta questão na biblioteca pública para outros alunos"
+                             >
+                               {isSavedToLibrary ? <Check className="w-5 h-5"/> : <Database className="w-5 h-5"/>}
+                             </button>
+                           )}
+                        </div>
                       </div>
                    )}
                 </div>
@@ -361,7 +394,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                    </div>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                   O sistema adapta a dificuldade com base nos seus acertos e no tempo de resposta.
+                   O sistema seleciona questões do banco ou gera novas com base na sua proficiência.
                 </p>
              </div>
           </div>

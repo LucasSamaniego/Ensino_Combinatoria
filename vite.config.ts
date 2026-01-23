@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     base: './',
     define: {
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || env.API_KEY || ""),
+      'process.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || ""),
       'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || ""),
       'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || ""),
       'process.env.FIREBASE_PROJECT_ID': JSON.stringify(env.FIREBASE_PROJECT_ID || ""),

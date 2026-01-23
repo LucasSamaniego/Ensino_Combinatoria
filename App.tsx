@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calculator, 
   ChevronRight, 
@@ -11,14 +11,20 @@ import {
   Scale,
   Binary,
   Cpu,
-  Divide
+  Divide,
+  ShieldAlert
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
 import LoginScreen from './components/LoginScreen';
+import AdminDashboard from './components/AdminDashboard';
+import StudyPlanSetup from './components/StudyPlanSetup';
+import StudyPathTimeline from './components/StudyPathTimeline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { loadUserProgress, saveUserProgress, getEmptyProgress } from './services/storageService';
+import { UserProgress, StudyPlan } from './types';
 
-type ViewState = 'hub' | 'subject_math' | 'subject_concursos' | 'module_active' | 'online_classroom';
+type ViewState = 'hub' | 'admin' | 'plan_setup' | 'subject_math' | 'subject_concursos' | 'module_active' | 'online_classroom';
 type Category = 'math' | 'concursos';
 
 const MainApp: React.FC = () => {
@@ -26,32 +32,91 @@ const MainApp: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('hub');
   const [activeCategory, setActiveCategory] = useState<Category>('math');
   const [activeSubCategory, setActiveSubCategory] = useState<string | undefined>(undefined);
+  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
+
+  // Efeito para carregar progresso e verificar estado
+  useEffect(() => {
+    const init = async () => {
+      if (user) {
+        const progress = await loadUserProgress(user.uid);
+        setUserProgress(progress);
+      }
+    };
+    init();
+  }, [user, currentView]); // Recarrega ao mudar de view para garantir sync
+
+  const handlePlanCreated = async (plan: StudyPlan) => {
+    if (user && userProgress) {
+      const updated = { ...userProgress, studyPlan: plan };
+      setUserProgress(updated);
+      await saveUserProgress(user.uid, updated);
+      setCurrentView(`subject_${activeCategory}` as ViewState); // Volta para a matéria
+    }
+  };
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-sm uppercase tracking-widest text-slate-400">Loading System...</div>;
   if (!user) return <LoginScreen />;
 
-  // Safeguard for user name to prevent "split of undefined" error
   const firstName = user?.name ? user.name.split(' ')[0] : 'Estudante';
+  
+  // Simples verificação de admin por e-mail (para demonstração)
+  // Em produção, isso viria de user.role do backend/custom claims
+  const isAdmin = user.email.includes('admin') || user.email === 'admin@plataforma.com';
 
   const enterModule = (cat: Category, sub?: string) => {
+    // 1. Verifica permissão (assignedCourses)
+    const allowed = userProgress?.assignedCourses.includes(cat);
+    
+    if (!allowed && !isAdmin) { // Admins bypass permission
+      alert("Este curso ainda não foi liberado para você. Contate o administrador.");
+      return;
+    }
+
     setActiveCategory(cat);
     setActiveSubCategory(sub);
-    setCurrentView('module_active');
+
+    // 2. Se for módulo de conteúdo (não dashboard geral), entra direto
+    if (sub) {
+      setCurrentView('module_active');
+    } else {
+      // 3. Se for dashboard da matéria, verifica se tem plano
+      // Se não tiver plano e já tiver feito o nivelamento, pede o plano
+      if (userProgress?.hasCompletedPlacement && !userProgress?.studyPlan) {
+        setCurrentView('plan_setup');
+      } else {
+        setCurrentView(`subject_${cat}` as ViewState);
+      }
+    }
   };
 
   const renderHub = () => (
     <div className="max-w-6xl mx-auto px-4 py-12 animate-in fade-in duration-700">
+      
+      {isAdmin && (
+        <div className="absolute top-4 right-4">
+          <button 
+            onClick={() => setCurrentView('admin')}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors"
+          >
+            <ShieldAlert className="w-4 h-4" /> Admin Dashboard
+          </button>
+        </div>
+      )}
+
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter uppercase">Plataforma de Ensino</h1>
         <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-          Olá, <span className="text-indigo-600 font-bold">{firstName}</span>. Selecione sua trilha de especialização para continuar.
+          Olá, <span className="text-indigo-600 font-bold">{firstName}</span>. 
+          {userProgress?.studyPlan 
+            ? ` Seguindo plano: ${userProgress.studyPlan.goal}` 
+            : ' Selecione sua trilha para começar.'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Matemática */}
         <button 
-          onClick={() => setCurrentView('subject_math')}
+          onClick={() => enterModule('math')}
           className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-indigo-200 transition-all duration-500 text-left overflow-hidden"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -62,16 +127,22 @@ const MainApp: React.FC = () => {
               <Calculator className="w-7 h-7" />
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Ciências Exatas</h3>
-            <p className="text-slate-500 text-sm mb-8 leading-relaxed">Matemática Olímpica, Álgebra e Análise Combinatória.</p>
-            <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-indigo-600">
-              Ver Disciplinas <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+               {userProgress?.assignedCourses.includes('math') ? 'Curso Liberado' : 'Aguardando Liberação'}
+            </p>
+            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${userProgress?.assignedCourses.includes('math') ? 'text-indigo-600' : 'text-slate-400'}`}>
+              {userProgress?.assignedCourses.includes('math') ? (
+                <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
+              ) : (
+                <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
+              )}
             </span>
           </div>
         </button>
 
         {/* Concursos Públicos */}
         <button 
-          onClick={() => setCurrentView('subject_concursos')}
+          onClick={() => enterModule('concursos')}
           className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-emerald-200 transition-all duration-500 text-left overflow-hidden"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -82,9 +153,15 @@ const MainApp: React.FC = () => {
               <Gavel className="w-7 h-7" />
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Concursos Públicos</h3>
-            <p className="text-slate-500 text-sm mb-8 leading-relaxed">Direito, Informática e Raciocínio Lógico para Carreiras.</p>
-            <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-emerald-600">
-              Ver Disciplinas <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+               {userProgress?.assignedCourses.includes('concursos') ? 'Curso Liberado' : 'Aguardando Liberação'}
+            </p>
+            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${userProgress?.assignedCourses.includes('concursos') ? 'text-emerald-600' : 'text-slate-400'}`}>
+              {userProgress?.assignedCourses.includes('concursos') ? (
+                <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
+              ) : (
+                <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
+              )}
             </span>
           </div>
         </button>
@@ -147,6 +224,20 @@ const MainApp: React.FC = () => {
           </button>
         </div>
 
+        {/* Display Adaptive Study Plan if Available */}
+        {userProgress?.studyPlan && (
+          <StudyPathTimeline plan={userProgress.studyPlan} />
+        )}
+
+        {/* Warning if Placement not done */}
+        {!userProgress?.hasCompletedPlacement && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl mb-8 flex items-center justify-between">
+            <div className="text-amber-800 text-sm">
+              <span className="font-bold">Atenção:</span> Complete o Módulo de Nivelamento (Matemática Básica) para liberar seu Plano de Estudos personalizado.
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isMath ? (
             <>
@@ -179,24 +270,12 @@ const MainApp: React.FC = () => {
                    Entrar no Módulo <ChevronRight className="w-3 h-3 ml-1" />
                  </div>
               </button>
-
-              {/* Geometria Bloqueado */}
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left opacity-60 cursor-not-allowed">
-                 <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 bg-slate-200 text-slate-400 rounded-lg flex items-center justify-center">
-                       <Calculator className="w-5 h-5" />
-                    </div>
-                    <Lock className="w-4 h-4 text-slate-300" />
-                 </div>
-                 <h3 className="text-xl font-bold text-slate-400 mb-2">Geometria Plana</h3>
-                 <p className="text-sm text-slate-400">Teoremas e exercícios de vestibulares militares.</p>
-              </div>
             </>
           ) : (
             <>
               {/* Card de Direito e RL (Concursos) */}
               <button 
-                onClick={() => enterModule('concursos')}
+                onClick={() => enterModule('concursos', 'concursos')}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:ring-2 hover:ring-emerald-200 transition-all text-left shadow-sm hover:shadow-md"
               >
                  <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center mb-4">
@@ -208,17 +287,6 @@ const MainApp: React.FC = () => {
                    Entrar no Módulo <ChevronRight className="w-3 h-3 ml-1" />
                  </div>
               </button>
-
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left opacity-60 cursor-not-allowed">
-                 <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 bg-slate-200 text-slate-400 rounded-lg flex items-center justify-center">
-                       <BookOpen className="w-5 h-5" />
-                    </div>
-                    <Lock className="w-4 h-4 text-slate-300" />
-                 </div>
-                 <h3 className="text-xl font-bold text-slate-400 mb-2">Língua Portuguesa</h3>
-                 <p className="text-sm text-slate-400">Gramática e interpretação de textos para bancas.</p>
-              </div>
             </>
           )}
         </div>
@@ -229,6 +297,8 @@ const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900">
       {currentView === 'hub' && renderHub()}
+      {currentView === 'admin' && <AdminDashboard onExit={() => setCurrentView('hub')} />}
+      {currentView === 'plan_setup' && userProgress && <StudyPlanSetup progress={userProgress} onPlanCreated={handlePlanCreated} />}
       {currentView === 'subject_math' && renderSubjectDetail('math')}
       {currentView === 'subject_concursos' && renderSubjectDetail('concursos')}
       {currentView === 'module_active' && (

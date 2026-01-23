@@ -58,39 +58,43 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
   const currentTopics = getCurrentTopics();
   const moduleTitle = subCategory === 'basic' ? 'Matemática Básica' : (subCategory === 'combinatorics' ? 'Análise Combinatória' : (category === 'math' ? 'Matemática' : 'Concursos'));
 
+  // Carregamento Assíncrono do Progresso
   useEffect(() => {
-    if (user) {
-      setLoading(true);
-      const data = loadUserProgress(user.uid);
-      setProgress(data);
-      
-      // Removido redirecionamento automático para 'placement'.
-      // O padrão é sempre o dashboard. O usuário pode acessar o nivelamento pela aba.
-      setView('dashboard');
-      
-      setLoading(false);
-    }
+    let isMounted = true;
+
+    const initProgress = async () => {
+      if (user) {
+        setLoading(true);
+        const data = await loadUserProgress(user.uid);
+        if (isMounted) {
+          setProgress(data);
+          setView('dashboard');
+          setLoading(false);
+        }
+      }
+    };
+
+    initProgress();
+
+    return () => { isMounted = false; };
   }, [user, category, subCategory]);
 
+  // Salvamento Automático (Debounced ou no efeito do progress)
   useEffect(() => {
     if (user && !loading) {
-      saveUserProgress(user.uid, progress);
+      // Salva sem bloquear a UI
+      saveUserProgress(user.uid, progress).catch(console.error);
     }
   }, [progress, user, loading]);
 
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
-    // Ajuste simples de proficiência baseado no teste
-    // Se acertou muito, começa com 0.65 (Advanced/Intermediate), se pouco, 0.15 (Basic)
     const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
 
     setProgress(prev => {
       const newSkills = { ...prev.skills };
       
-      // Atualiza apenas os tópicos deste módulo
       currentTopics.forEach(topic => {
-        // Se a skill já tiver um mastery maior, mantemos (para não regredir alunos que refazem o teste)
-        // A menos que queiramos permitir reset. Aqui assumimos atualização se for melhor ou se for o primeiro.
         const currentM = newSkills[topic.id].masteryProbability;
         const newM = Math.max(currentM, initialMastery);
 

@@ -41,6 +41,7 @@ export interface UserProfile {
   name: string;
   email: string;
   photoURL?: string;
+  role?: 'student' | 'admin';
 }
 
 export interface SubSkill {
@@ -89,8 +90,8 @@ export interface Question {
   visualization?: VisualizationData;
   hints?: string[];     
   miniTheory?: string;
-  banca?: string; // Identifica a banca examinadora (ex: FGV, CESPE)
-  source?: string; // Novo: Identifica a fonte olímpica (ex: OBMEP 2023 - Brasil)
+  banca?: string;
+  source?: string;
 }
 
 export interface TheoryContent {
@@ -122,12 +123,31 @@ export interface Flashcard {
   srs: SRSState;
 }
 
+// --- NEW STUDY PLAN TYPES ---
+
+export interface StudyWeek {
+  weekNumber: number;
+  theme: string;
+  topicsToStudy: string[];
+  focusArea: 'Fixation' | 'Practice' | 'Revision' | 'Advanced';
+}
+
+export interface StudyPlan {
+  goal: string; // ex: "Passar na ESA", "Aprender para Escola"
+  deadline: string; // ISO Date
+  dailyMinutes: number;
+  generatedSchedule: StudyWeek[];
+  createdAt: number;
+}
+
 export interface UserProgress {
   hasCompletedPlacement: boolean; 
+  assignedCourses: string[]; // IDs dos cursos liberados pelo admin (ex: 'math', 'concursos')
+  studyPlan?: StudyPlan; // O plano adaptativo gerado
   skills: { [key: string]: SkillState }; 
   history: Interaction[];
   flashcards: Flashcard[]; 
-  favorites: Question[]; // Questões favoritadas pelo usuário
+  favorites: Question[]; 
 }
 
 export interface GraphNode {

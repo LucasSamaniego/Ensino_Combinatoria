@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard } from '../types';
+import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard, StudyPlan, StudyWeek } from '../types';
 import { getInitialSRSState } from './srsService';
 
 // Lazy initialization to prevent crash on load if API key is missing
@@ -381,4 +382,63 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
     role,
     knowledgeGraph: data.knowledgeGraph || { nodes: [], edges: [] }
   };
+};
+
+// --- NEW FUNCTION: Adaptive Study Path Generation ---
+
+export const generateStudyPath = async (
+  weaknesses: string[], 
+  goal: string, 
+  deadline: string, 
+  dailyMinutes: number
+): Promise<StudyWeek[]> => {
+  const prompt = `
+    Atue como um coordenador pedagógico de elite.
+    Crie um plano de estudos semanal personalizado.
+    
+    DADOS DO ALUNO:
+    - Objetivo: ${goal}
+    - Data Limite: ${deadline}
+    - Tempo Diário: ${dailyMinutes} minutos
+    - Lacunas Identificadas (Weaknesses): ${weaknesses.join(', ')}
+
+    INSTRUÇÕES:
+    1. Calcule quantas semanas faltam até a data limite.
+    2. Priorize as lacunas (weaknesses) nas primeiras semanas.
+    3. Distribua o conteúdo restante de forma lógica.
+    4. Gere no máximo 12 semanas (ou menos se o prazo for curto).
+    5. 'focusArea' deve ser: 'Fixation' (para lacunas), 'Practice' (conteúdo novo), 'Revision' (revisão) ou 'Advanced'.
+
+    Retorne JSON Array de Semanas.
+  `;
+
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: MODEL_FLASH,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              weekNumber: { type: Type.INTEGER },
+              theme: { type: Type.STRING },
+              topicsToStudy: { type: Type.ARRAY, items: { type: Type.STRING } },
+              focusArea: { type: Type.STRING, enum: ['Fixation', 'Practice', 'Revision', 'Advanced'] }
+            },
+            required: ['weekNumber', 'theme', 'topicsToStudy', 'focusArea']
+          }
+        }
+      }
+    });
+
+    const weeks = JSON.parse(response.text || '[]');
+    return weeks;
+  } catch (error) {
+    console.error("Error generating study plan:", error);
+    return [];
+  }
 };

@@ -1,13 +1,14 @@
 
 import { UserProgress, TopicId, SkillState } from '../types';
 import { TOPICS_DATA, DEFAULT_BKT_PARAMS } from '../constants';
+import { api } from './api';
 
 const STORAGE_PREFIX = 'plataforma_estudos_v1_';
 
+// Cria estado inicial vazio (Executado no Client)
 export const getEmptyProgress = (): UserProgress => {
   const skills: { [key: string]: SkillState } = {};
     
-  // Initialize all skills at basic level
   TOPICS_DATA.forEach(t => {
     skills[t.id] = {
       id: t.id,
@@ -35,6 +36,7 @@ export const getEmptyProgress = (): UserProgress => {
 
   return { 
     hasCompletedPlacement: false,
+    assignedCourses: [], // Por padrão, nenhum curso atribuído até o admin liberar
     skills, 
     history: [],
     flashcards: [],
@@ -42,28 +44,45 @@ export const getEmptyProgress = (): UserProgress => {
   };
 };
 
-export const saveUserProgress = (userId: string, progress: UserProgress): void => {
+// Salva o progresso via API (MySQL)
+export const saveUserProgress = async (userId: string, progress: UserProgress): Promise<void> => {
   try {
-    const key = `${STORAGE_PREFIX}${userId}`;
-    localStorage.setItem(key, JSON.stringify(progress));
-    // console.log('Progress saved for', userId);
+    await api.syncProgress(userId, progress);
   } catch (error) {
-    console.error('Failed to save progress', error);
+    console.error('Failed to sync progress to API, saving locally', error);
+    // Fallback LocalStorage
+    localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(progress));
   }
 };
 
-export const loadUserProgress = (userId: string): UserProgress => {
+// Carrega o progresso via API (MySQL)
+export const loadUserProgress = async (userId: string): Promise<UserProgress> => {
+  // 1. Tenta API
+  try {
+    const remoteData = await api.loadProgress(userId);
+    if (remoteData) {
+      // Migrações defensivas
+      if (!remoteData.favorites) remoteData.favorites = [];
+      if (!remoteData.assignedCourses) remoteData.assignedCourses = []; // Garante array
+      return remoteData;
+    }
+  } catch (error) {
+    console.warn('API offline or user not found, checking local storage.');
+  }
+
+  // 2. Fallback LocalStorage
   try {
     const key = `${STORAGE_PREFIX}${userId}`;
     const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Migração segura: garante que favorites existe se carregar um save antigo
       if (!parsed.favorites) parsed.favorites = [];
+      if (!parsed.assignedCourses) parsed.assignedCourses = [];
       return parsed;
     }
   } catch (error) {
-    console.error('Failed to load progress', error);
+    console.error('Failed to load local progress', error);
   }
+
   return getEmptyProgress();
 };
