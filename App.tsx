@@ -35,8 +35,6 @@ const MainApp: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
 
   // Efeito para carregar progresso APENAS quando o usuário muda/loga.
-  // Removemos 'currentView' das dependências para evitar que a navegação dispare recargas
-  // que poderiam sobrescrever o estado local atualizado (ex: logo após criar um plano).
   useEffect(() => {
     const init = async () => {
       if (user) {
@@ -313,7 +311,14 @@ const MainApp: React.FC = () => {
     <div className="min-h-screen bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900">
       {currentView === 'hub' && renderHub()}
       {currentView === 'admin' && <AdminDashboard onExit={() => setCurrentView('hub')} />}
-      {currentView === 'plan_setup' && userProgress && <StudyPlanSetup progress={userProgress} onPlanCreated={handlePlanCreated} />}
+      {/* Passando activeCategory para StudyPlanSetup */}
+      {currentView === 'plan_setup' && userProgress && (
+        <StudyPlanSetup 
+          progress={userProgress} 
+          onPlanCreated={handlePlanCreated} 
+          category={activeCategory} 
+        />
+      )}
       {currentView === 'subject_math' && renderSubjectDetail('math')}
       {currentView === 'subject_concursos' && renderSubjectDetail('concursos')}
       {currentView === 'module_active' && (
@@ -321,7 +326,7 @@ const MainApp: React.FC = () => {
           category={activeCategory} 
           subCategory={activeSubCategory}
           onUpdateProgress={handleProgressUpdate}
-          onExit={() => enterModule(activeCategory)} // Chama enterModule para revalidar se precisa de plano de estudo
+          onExit={() => enterModule(activeCategory)} 
         />
       )}
       {currentView === 'online_classroom' && (

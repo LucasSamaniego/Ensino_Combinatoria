@@ -392,8 +392,14 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
 export const calculateStudyEffort = async (
   weaknesses: string[],
   goalDescription: string,
-  deadline: string
+  deadline: string,
+  selectedTopics: string[] = []
 ): Promise<{ recommendedMinutes: number; reasoning: string }> => {
+  
+  const topicContext = selectedTopics.length > 0 
+    ? `O plano cobrirá APENAS estes tópicos selecionados: ${selectedTopics.join(', ')}.`
+    : '';
+
   const prompt = `
     Atue como um coordenador pedagógico.
     
@@ -401,16 +407,17 @@ export const calculateStudyEffort = async (
     - Objetivo: ${goalDescription}
     - Prazo Final: ${deadline} (Hoje é: ${new Date().toISOString().split('T')[0]})
     - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma grave'}
+    - ${topicContext}
     
     TAREFA:
-    Calcule a quantidade IDEAL de minutos de estudo por dia para atingir a maestria até o prazo.
+    Calcule a quantidade IDEAL de minutos de estudo por dia para atingir a maestria NOS TÓPICOS SELECIONADOS até o prazo.
     Considere:
-    1. Se o prazo for curto e houver muitas lacunas, aumente o tempo.
-    2. Se o prazo for longo, o tempo pode ser menor.
-    3. Mínimo razoável: 30 min. Máximo razoável: 240 min.
+    1. O volume de conteúdo dos tópicos selecionados (${selectedTopics.length} tópicos).
+    2. Se o prazo for curto e houver muitas lacunas, aumente o tempo.
+    3. Mínimo razoável: 20 min (se poucos tópicos). Máximo razoável: 240 min.
     
     Retorne JSON:
-    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Devido ao prazo curto de 2 semanas e 4 lacunas detectadas...')" }
+    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Para cobrir os 3 tópicos selecionados em 2 semanas...')" }
   `;
 
   try {
@@ -445,25 +452,30 @@ export const generateStudyPath = async (
   weaknesses: string[], 
   goalDescription: string, 
   deadline: string, 
-  dailyMinutes: number
+  dailyMinutes: number,
+  selectedTopics: string[] = []
 ): Promise<StudyWeek[]> => {
+  
+  const topicConstraint = selectedTopics.length > 0
+    ? `RESTRIÇÃO CRÍTICA: O plano de estudos DEVE conter APENAS assuntos relacionados à lista: [${selectedTopics.join(', ')}]. NÃO inclua tópicos fora desta lista.`
+    : '';
+
   const prompt = `
     Atue como um coordenador pedagógico de elite especializado em personalização de ensino.
     
     DADOS DO ALUNO:
     - CONTEXTO ESPECÍFICO DO OBJETIVO: ${goalDescription}
-      (Importante: Se for 'Escola', siga a BNCC. Se for 'Concurso', foque no edital e questões. Se for 'Olímpico', foque em demonstrações e raciocínio profundo).
     - Data Limite: ${deadline}
     - Tempo Diário Disponível: ${dailyMinutes} minutos
-    - Lacunas Identificadas (Nivelamento): ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica detectada'}
+    - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica'}
+
+    ${topicConstraint}
 
     INSTRUÇÕES DE PLANEJAMENTO:
     1. Calcule quantas semanas faltam até a data limite.
-    2. Crie uma progressão lógica. 
-       - Se houver lacunas (weaknesses), as primeiras semanas DEVEM ser de "Fixation" (Correção de Base) focadas nesses temas.
-       - Depois, avance para o conteúdo exigido pelo objetivo (${goalDescription}).
-    3. Para Concursos/Vestibulares, as últimas semanas devem ser de "Revision" com foco em simulados.
-    4. Gere no máximo 12 semanas (ou menos se o prazo for curto).
+    2. Distribua APENAS os tópicos selecionados ao longo dessas semanas.
+    3. Se houver lacunas (weaknesses) que afetam esses tópicos, inclua revisão delas no início.
+    4. Gere no máximo 12 semanas.
     
     Retorne JSON Array de Semanas no seguinte schema:
     [{ "weekNumber": 1, "theme": "Tema Central", "topicsToStudy": ["Tópico 1", "Tópico 2"], "focusArea": "Fixation" | "Practice" | "Revision" | "Advanced" }]
