@@ -34,7 +34,9 @@ const MainApp: React.FC = () => {
   const [activeSubCategory, setActiveSubCategory] = useState<string | undefined>(undefined);
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
 
-  // Efeito para carregar progresso e verificar estado
+  // Efeito para carregar progresso APENAS quando o usuário muda/loga.
+  // Removemos 'currentView' das dependências para evitar que a navegação dispare recargas
+  // que poderiam sobrescrever o estado local atualizado (ex: logo após criar um plano).
   useEffect(() => {
     const init = async () => {
       if (user) {
@@ -43,23 +45,26 @@ const MainApp: React.FC = () => {
       }
     };
     init();
-  }, [user, currentView]); // Recarrega ao mudar de view para garantir sync
+  }, [user]); 
 
   const handlePlanCreated = async (plan: StudyPlan) => {
     if (user && userProgress) {
+      // Atualiza estado local imediatamente para feedback visual
       const updated = { ...userProgress, studyPlan: plan };
       setUserProgress(updated);
+      
+      // Salva no backend
       await saveUserProgress(user.uid, updated);
-      setCurrentView(`subject_${activeCategory}` as ViewState); // Volta para a matéria
+      
+      // Muda a visualização
+      setCurrentView(`subject_${activeCategory}` as ViewState); 
     }
   };
 
   // Callback para receber atualizações do módulo filho (CombinatoricsModule)
-  // Isso garante que o pai saiba que o nivelamento foi feito ANTES do usuário sair do módulo
   const handleProgressUpdate = async (newProgress: UserProgress) => {
     setUserProgress(newProgress);
     if (user) {
-      // Salva no storage também para garantir
       await saveUserProgress(user.uid, newProgress);
     }
   };
@@ -69,8 +74,6 @@ const MainApp: React.FC = () => {
 
   const firstName = user?.name ? user.name.split(' ')[0] : 'Estudante';
   
-  // Simples verificação de admin por e-mail (para demonstração)
-  // Em produção, isso viria de user.role do backend/custom claims
   const isAdmin = user.email.includes('admin') || 
                   user.email === 'admin@plataforma.com' || 
                   user.email === 'samaniego444@gmail.com' || 
@@ -80,7 +83,6 @@ const MainApp: React.FC = () => {
     // 1. Verifica permissão (assignedCourses)
     const allowed = userProgress?.assignedCourses.includes(cat);
     
-    // Se não for permitido E não for admin, bloqueia. Se for admin, passa direto.
     if (!allowed && !isAdmin) { 
       alert("Este curso ainda não foi liberado para você. Contate o administrador.");
       return;
@@ -94,8 +96,6 @@ const MainApp: React.FC = () => {
       setCurrentView('module_active');
     } else {
       // 3. Se for dashboard da matéria, verifica se tem plano
-      // Se não tiver plano e já tiver feito o nivelamento, pede o plano
-      // Admins podem querer testar o fluxo de setup também, então mantemos a lógica
       if (userProgress?.hasCompletedPlacement && !userProgress?.studyPlan) {
         setCurrentView('plan_setup');
       } else {
