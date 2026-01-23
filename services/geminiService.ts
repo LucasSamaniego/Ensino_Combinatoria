@@ -384,32 +384,89 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
   };
 };
 
-// --- NEW FUNCTION: Adaptive Study Path Generation ---
+// --- NEW FUNCTIONS: Adaptive Study Path Generation ---
+
+/**
+ * Calcula a carga horária recomendada baseada no prazo e nas fraquezas
+ */
+export const calculateStudyEffort = async (
+  weaknesses: string[],
+  goalDescription: string,
+  deadline: string
+): Promise<{ recommendedMinutes: number; reasoning: string }> => {
+  const prompt = `
+    Atue como um coordenador pedagógico.
+    
+    DADOS DO ALUNO:
+    - Objetivo: ${goalDescription}
+    - Prazo Final: ${deadline} (Hoje é: ${new Date().toISOString().split('T')[0]})
+    - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma grave'}
+    
+    TAREFA:
+    Calcule a quantidade IDEAL de minutos de estudo por dia para atingir a maestria até o prazo.
+    Considere:
+    1. Se o prazo for curto e houver muitas lacunas, aumente o tempo.
+    2. Se o prazo for longo, o tempo pode ser menor.
+    3. Mínimo razoável: 30 min. Máximo razoável: 240 min.
+    
+    Retorne JSON:
+    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Devido ao prazo curto de 2 semanas e 4 lacunas detectadas...')" }
+  `;
+
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: MODEL_FLASH,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            recommendedMinutes: { type: Type.NUMBER },
+            reasoning: { type: Type.STRING }
+          },
+          required: ['recommendedMinutes', 'reasoning']
+        }
+      }
+    });
+    
+    const data = JSON.parse(response.text || '{}');
+    return {
+      recommendedMinutes: data.recommendedMinutes || 60,
+      reasoning: data.reasoning || "Baseado na análise do seu perfil e prazo."
+    };
+  } catch (error) {
+    return { recommendedMinutes: 60, reasoning: "Estimativa padrão devido a erro na análise." };
+  }
+};
 
 export const generateStudyPath = async (
   weaknesses: string[], 
-  goal: string, 
+  goalDescription: string, 
   deadline: string, 
   dailyMinutes: number
 ): Promise<StudyWeek[]> => {
   const prompt = `
-    Atue como um coordenador pedagógico de elite.
-    Crie um plano de estudos semanal personalizado.
+    Atue como um coordenador pedagógico de elite especializado em personalização de ensino.
     
     DADOS DO ALUNO:
-    - Objetivo: ${goal}
+    - CONTEXTO ESPECÍFICO DO OBJETIVO: ${goalDescription}
+      (Importante: Se for 'Escola', siga a BNCC. Se for 'Concurso', foque no edital e questões. Se for 'Olímpico', foque em demonstrações e raciocínio profundo).
     - Data Limite: ${deadline}
-    - Tempo Diário: ${dailyMinutes} minutos
-    - Lacunas Identificadas (Weaknesses): ${weaknesses.join(', ')}
+    - Tempo Diário Disponível: ${dailyMinutes} minutos
+    - Lacunas Identificadas (Nivelamento): ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica detectada'}
 
-    INSTRUÇÕES:
+    INSTRUÇÕES DE PLANEJAMENTO:
     1. Calcule quantas semanas faltam até a data limite.
-    2. Priorize as lacunas (weaknesses) nas primeiras semanas.
-    3. Distribua o conteúdo restante de forma lógica.
+    2. Crie uma progressão lógica. 
+       - Se houver lacunas (weaknesses), as primeiras semanas DEVEM ser de "Fixation" (Correção de Base) focadas nesses temas.
+       - Depois, avance para o conteúdo exigido pelo objetivo (${goalDescription}).
+    3. Para Concursos/Vestibulares, as últimas semanas devem ser de "Revision" com foco em simulados.
     4. Gere no máximo 12 semanas (ou menos se o prazo for curto).
-    5. 'focusArea' deve ser: 'Fixation' (para lacunas), 'Practice' (conteúdo novo), 'Revision' (revisão) ou 'Advanced'.
-
-    Retorne JSON Array de Semanas.
+    
+    Retorne JSON Array de Semanas no seguinte schema:
+    [{ "weekNumber": 1, "theme": "Tema Central", "topicsToStudy": ["Tópico 1", "Tópico 2"], "focusArea": "Fixation" | "Practice" | "Revision" | "Advanced" }]
   `;
 
   try {
