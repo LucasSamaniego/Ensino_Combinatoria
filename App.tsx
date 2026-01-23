@@ -7,12 +7,12 @@ import {
   LogOut, 
   Video, 
   Gavel, 
-  BookOpen,
-  Scale,
-  Binary,
-  Cpu,
-  Divide,
-  ShieldAlert
+  BookOpen, 
+  Scale, 
+  Binary, 
+  Cpu, 
+  Divide, 
+  ShieldAlert 
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -61,13 +61,17 @@ const MainApp: React.FC = () => {
   
   // Simples verificação de admin por e-mail (para demonstração)
   // Em produção, isso viria de user.role do backend/custom claims
-  const isAdmin = user.email.includes('admin') || user.email === 'admin@plataforma.com';
+  const isAdmin = user.email.includes('admin') || 
+                  user.email === 'admin@plataforma.com' || 
+                  user.email === 'samaniego444@gmail.com' || 
+                  user.email === 'convidado@plataforma.com';
 
   const enterModule = (cat: Category, sub?: string) => {
     // 1. Verifica permissão (assignedCourses)
     const allowed = userProgress?.assignedCourses.includes(cat);
     
-    if (!allowed && !isAdmin) { // Admins bypass permission
+    // Se não for permitido E não for admin, bloqueia. Se for admin, passa direto.
+    if (!allowed && !isAdmin) { 
       alert("Este curso ainda não foi liberado para você. Contate o administrador.");
       return;
     }
@@ -81,6 +85,7 @@ const MainApp: React.FC = () => {
     } else {
       // 3. Se for dashboard da matéria, verifica se tem plano
       // Se não tiver plano e já tiver feito o nivelamento, pede o plano
+      // Admins podem querer testar o fluxo de setup também, então mantemos a lógica
       if (userProgress?.hasCompletedPlacement && !userProgress?.studyPlan) {
         setCurrentView('plan_setup');
       } else {
@@ -128,10 +133,10 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Ciências Exatas</h3>
             <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-               {userProgress?.assignedCourses.includes('math') ? 'Curso Liberado' : 'Aguardando Liberação'}
+               {(userProgress?.assignedCourses.includes('math') || isAdmin) ? 'Curso Liberado' : 'Aguardando Liberação'}
             </p>
-            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${userProgress?.assignedCourses.includes('math') ? 'text-indigo-600' : 'text-slate-400'}`}>
-              {userProgress?.assignedCourses.includes('math') ? (
+            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${(userProgress?.assignedCourses.includes('math') || isAdmin) ? 'text-indigo-600' : 'text-slate-400'}`}>
+              {(userProgress?.assignedCourses.includes('math') || isAdmin) ? (
                 <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
               ) : (
                 <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
@@ -154,10 +159,10 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Concursos Públicos</h3>
             <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-               {userProgress?.assignedCourses.includes('concursos') ? 'Curso Liberado' : 'Aguardando Liberação'}
+               {(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? 'Curso Liberado' : 'Aguardando Liberação'}
             </p>
-            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${userProgress?.assignedCourses.includes('concursos') ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {userProgress?.assignedCourses.includes('concursos') ? (
+            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? 'text-emerald-600' : 'text-slate-400'}`}>
+              {(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? (
                 <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
               ) : (
                 <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
