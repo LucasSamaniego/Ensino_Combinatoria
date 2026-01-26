@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { getSmartQuestion, saveQuestionToLibrary } from '../services/questionDatabase';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar, Briefcase } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar, Briefcase, ThumbsUp, ThumbsDown } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 import { useAuth } from '../contexts/AuthContext';
@@ -163,6 +163,10 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
 
   const isCurrentFavorite = question ? isFavorite(question.id) : false;
 
+  // Detecção especial para Cebraspe (Certo/Errado)
+  const isTrueFalse = question && question.options && question.options.length === 2 && 
+    (question.options.some(o => o.toLowerCase() === 'certo') && question.options.some(o => o.toLowerCase() === 'errado'));
+
   return (
     <div className="max-w-4xl mx-auto">
       <button onClick={onBack} className="mb-6 flex items-center text-gray-500 hover:text-gray-900 transition-colors">
@@ -227,6 +231,12 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                             {question.source}
                          </div>
                        )}
+                       {isTrueFalse && (
+                         <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-100 text-xs font-bold uppercase tracking-tight">
+                            <CheckCircle className="w-3.5 h-3.5 text-amber-500" />
+                            JULGUE O ITEM
+                         </div>
+                       )}
                      </div>
                    )}
 
@@ -268,21 +278,40 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                    {!feedback && (
                      <div className="space-y-4">
                        {question.options ? (
-                         <div className="grid grid-cols-1 gap-3">
-                           {question.options.map((opt, idx) => (
-                             <button
-                               key={idx}
-                               onClick={() => setUserAnswer(opt)}
-                               className={`p-4 text-left rounded-xl border-2 transition-all ${
-                                 userAnswer === opt 
-                                   ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-md ring-1 ring-indigo-200' 
-                                   : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
-                               }`}
-                             >
-                               <span className="font-bold text-gray-400 mr-3">{String.fromCharCode(65 + idx)}.</span> 
-                               <span className="inline-block"><MathRenderer text={opt} /></span>
-                             </button>
-                           ))}
+                         <div className={`grid ${isTrueFalse ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-3'}`}>
+                           {question.options.map((opt, idx) => {
+                             if (isTrueFalse) {
+                               const isCerto = opt.toLowerCase() === 'certo';
+                               return (
+                                 <button
+                                   key={idx}
+                                   onClick={() => setUserAnswer(opt)}
+                                   className={`p-6 text-center rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${
+                                     userAnswer === opt 
+                                       ? (isCerto ? 'border-green-600 bg-green-50 text-green-900 ring-2 ring-green-200' : 'border-red-600 bg-red-50 text-red-900 ring-2 ring-red-200')
+                                       : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                                   }`}
+                                 >
+                                    {isCerto ? <ThumbsUp className="w-8 h-8 opacity-50"/> : <ThumbsDown className="w-8 h-8 opacity-50"/>}
+                                    <span className="font-bold text-lg">{opt}</span>
+                                 </button>
+                               )
+                             }
+                             return (
+                               <button
+                                 key={idx}
+                                 onClick={() => setUserAnswer(opt)}
+                                 className={`p-4 text-left rounded-xl border-2 transition-all ${
+                                   userAnswer === opt 
+                                     ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-md ring-1 ring-indigo-200' 
+                                     : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                                 }`}
+                               >
+                                 <span className="font-bold text-gray-400 mr-3">{String.fromCharCode(65 + idx)}.</span> 
+                                 <span className="inline-block"><MathRenderer text={opt} /></span>
+                               </button>
+                             );
+                           })}
                          </div>
                        ) : (
                          <input

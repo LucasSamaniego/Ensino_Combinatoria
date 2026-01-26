@@ -71,7 +71,9 @@ export const generateProblem = async (
     persona = "Você é um ARQUIVISTA DE PROVAS E BANCO DE QUESTÕES (Crawler de Concursos).";
     
     // Lógica Estrita de Filtro de Banca (ZERO TOLERANCE)
+    const contextUpper = contextInfo ? contextInfo.toUpperCase() : "";
     const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco"));
+    const isCebraspe = contextUpper.includes("CEBRASPE") || contextUpper.includes("CESPE");
     
     let boardInstruction = "";
     
@@ -87,6 +89,17 @@ export const generateProblem = async (
            - A fidelidade à BANCA é mais importante que a fidelidade ao SUBTÓPICO.
         5. Se o usuário pediu "FGV", e você retornar "Cebraspe", isso será considerado ERRO CRÍTICO.
         `;
+
+        if (isCebraspe) {
+          boardInstruction += `
+          \nPROTOCOLO ESPECIAL CEBRASPE/CESPE:
+          - A maioria das questões desta banca é do tipo "JULGUE O ITEM" (Certo ou Errado).
+          - SE a questão original for de "Certo ou Errado", o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
+          - O campo "correctAnswer" deve ser "Certo" ou "Errado".
+          - NÃO invente alternativas (A, B, C, D) se a questão original não tiver.
+          - Se a questão for de múltipla escolha (estilo Cebraspe Múltipla Escolha), use as alternativas originais.
+          `;
+        }
     } else {
         boardInstruction = "Bancas sugeridas: FGV, Cebraspe, Vunesp, FCC. (Busque das maiores se não houver filtro específico).";
     }
@@ -100,11 +113,11 @@ export const generateProblem = async (
       2.  ${boardInstruction}
       3.  Tópico Alvo: ${topicName} > ${subSkillName}.
       4.  COPIE O ENUNCIADO EXATAMENTE como estava no caderno de prova.
-      5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam.
+      5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam (Respeitando Certo/Errado se for o caso).
       
       REGRAS DE METADADOS:
-      - 'banca': Deve ser o nome real da organizadora (ex: FGV).
-      - 'source': Deve conter "Órgão - Cargo - Ano" (ex: "TJRN - Técnico Judiciário - 2023").
+      - 'banca': Deve ser o nome real da organizadora (ex: FGV, CEBRASPE).
+      - 'source': Deve conter "Órgão - Cargo - Ano" (ex: "PF - Agente - 2021").
     `;
 
     visualInstruction = `
@@ -129,8 +142,8 @@ export const generateProblem = async (
     Retorne APENAS o JSON no esquema:
     {
       "text": "Enunciado da questão (COPIADO DA PROVA)...",
-      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
-      "correctAnswer": "Texto da alternativa correta",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."] OU ["Certo", "Errado"],
+      "correctAnswer": "Texto da alternativa correta (ou 'Certo'/'Errado')",
       "explanation": "Gabarito comentado citando a lei, jurisprudência ou lógica da banca...",
       "hints": ["Dica sobre o estilo da banca", "Dica teórica"],
       "miniTheory": "Resumo do conceito (ex: Artigo da lei cobrado)...",
@@ -228,11 +241,11 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
     contentFilter = `
       RECUPERE 4 questões REAIS (CÓPIA FIEL) de concursos públicos recentes (2023-2024).
       - 1 de Direito Administrativo (Banca FGV).
-      - 1 de Direito Constitucional (Banca Cebraspe).
+      - 1 de Direito Constitucional (Banca Cebraspe - Estilo Certo/Errado).
       - 1 de Direito Penal (Banca Vunesp).
       - 1 de Raciocínio Lógico (Banca FCC).
       OBRIGATÓRIO: Preencha 'banca' e 'source' (ex: TJ-SP 2023).
-      PROIBIDO: Não inclua matemática escolar básica que não seja de concurso.
+      Para Cebraspe, as opções devem ser ["Certo", "Errado"].
     `;
   }
 
@@ -313,13 +326,13 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       
       INSTRUÇÃO DE QUANTIDADE (REDUÇÃO PREFERENCIAL):
       Você foi solicitado a buscar ${questionCount} questões.
-      PORÉM, se você não encontrar ${questionCount} questões EXATAS das bancas selecionadas (se houver contexto) ou grandes bancas:
-      -> RETORNE MENOS QUESTÕES. 
-      -> É MELHOR retornar 3 questões corretas da banca certa do que 10 questões erradas ou inventadas.
-      -> NÃO invente questões.
-      -> NÃO pegue questões de vestibulares se o pedido for concurso.
       
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
+      
+      CEBRASPE/CESPE INSTRUCTION:
+      - Se selecionar questões do CEBRASPE, dê preferência ao formato ["Certo", "Errado"].
+      - Não transforme questões de Certo/Errado em Múltipla Escolha.
+      
       MANDATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (Órgão - Ano).
     `;
   } else if (style === 'Military') {
