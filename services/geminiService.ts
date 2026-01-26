@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, Difficulty, TopicId, Interaction, ReportData, TheoryContent, SimulationConfig, Flashcard, StudyPlan, StudyWeek } from '../types';
 import { getInitialSRSState } from './srsService';
+import { CONCURSOS_TOPICS } from '../constants';
 
 // Lazy initialization to prevent crash on load if API key is missing
 let aiInstance: GoogleGenAI | null = null;
@@ -223,6 +224,8 @@ export const generateProblem = async (
   }
 };
 
+// ... (Other functions: generatePlacementQuestions, generateSimulationQuestions, generateFlashcards, generateFeedbackReport)
+
 export const generatePlacementQuestions = async (category: 'math' | 'concursos', subCategory?: string): Promise<Question[]> => {
   // Mantida lógica original do placement
   let persona = "";
@@ -433,6 +436,69 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
   };
 };
 
+/**
+ * NEW: Analyzes an uploaded syllabus (PDF/Text) and maps it to our topic list.
+ */
+export const analyzeSyllabus = async (
+  base64Data: string, 
+  mimeType: string
+): Promise<{ matchedTopics: string[], summary: string }> => {
+  
+  const knownTopicsList = CONCURSOS_TOPICS.map(t => t.name).join(", ");
+
+  const prompt = `
+    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS DE CONCURSO.
+    
+    TAREFA:
+    1. Analise o arquivo do edital fornecido (pode ser PDF ou Imagem).
+    2. Identifique os tópicos cobrados que correspondem à nossa lista de matérias disponíveis: [${knownTopicsList}].
+    3. Retorne uma lista APENAS com os nomes exatos da nossa lista que foram encontrados no edital.
+    4. Gere um breve resumo (3 linhas) sobre o foco do edital (ex: "Foco pesado em legislação especial e atos administrativos").
+    
+    Retorne JSON:
+    {
+      "matchedTopics": ["Tópico A", "Tópico B"],
+      "summary": "Resumo da análise..."
+    }
+  `;
+
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: MODEL_FLASH, // Gemini Flash supports multimodal (PDF/Images)
+      contents: [
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Data
+          }
+        },
+        { text: prompt }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matchedTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+            summary: { type: Type.STRING }
+          },
+          required: ['matchedTopics', 'summary']
+        }
+      }
+    });
+
+    const data = JSON.parse(response.text || '{}');
+    return {
+      matchedTopics: data.matchedTopics || [],
+      summary: data.summary || "Edital analisado, mas nenhum tópico padrão foi identificado com certeza."
+    };
+  } catch (error) {
+    console.error("Error analyzing syllabus:", error);
+    return { matchedTopics: [], summary: "Erro ao processar o arquivo. Tente um formato de texto ou imagem mais claro." };
+  }
+};
+
 // --- NEW FUNCTIONS: Adaptive Study Path Generation ---
 
 export const calculateStudyEffort = async (
@@ -500,7 +566,8 @@ export const generateStudyPath = async (
   deadline: string, 
   dailyMinutes: number,
   selectedTopics: string[] = [],
-  category?: 'math' | 'concursos'
+  category?: 'math' | 'concursos',
+  syllabusContext?: string // Passed from the updated StudyPlanSetup
 ): Promise<StudyWeek[]> => {
   
   // 1. Calculate the actual time available
@@ -527,6 +594,10 @@ export const generateStudyPath = async (
     ? `RESTRIÇÃO CRÍTICA DE ESCOPO: O plano de estudos DEVE conter APENAS assuntos EXPLICITAMENTE LISTADOS AQUI: [${selectedTopics.join(', ')}]. NÃO INVENTE TÓPICOS NOVOS.`
     : '';
 
+  const syllabusInstruction = syllabusContext 
+    ? `CONTEXTO DO EDITAL (MUITO IMPORTANTE): O usuário fez upload do edital. O resumo da análise é: "${syllabusContext}". Use isso para priorizar o que realmente cai.`
+    : '';
+
   const prompt = `
     ${personaInstruction}
     
@@ -535,6 +606,8 @@ export const generateStudyPath = async (
     - Data Limite: ${deadline}
     - Tempo Diário Disponível: ${dailyMinutes} minutos
     - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica'}
+    
+    ${syllabusInstruction}
 
     DURAÇÃO DO PLANO:
     Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.

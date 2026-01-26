@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StudyPlan, UserProgress, SkillState } from '../types';
-import { generateStudyPath, calculateStudyEffort } from '../services/geminiService';
+import { generateStudyPath, calculateStudyEffort, analyzeSyllabus } from '../services/geminiService';
 import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS } from '../constants';
-import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2 } from 'lucide-react';
+import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText } from 'lucide-react';
 
 interface StudyPlanSetupProps {
   progress: UserProgress;
@@ -26,11 +26,16 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   
   // Concursos Specific Data
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
-
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
+  const [isAnalyzingSyllabus, setIsAnalyzingSyllabus] = useState(false);
+  const [syllabusSummary, setSyllabusSummary] = useState<string>('');
+  
   // AI Recommendation Data
   const [recommendedMinutes, setRecommendedMinutes] = useState(0);
   const [recommendationReason, setRecommendationReason] = useState('');
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Available Topics based on Category
   const availableTopics = category === 'math' 
@@ -39,8 +44,8 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
   // Initial setup based on category
   useEffect(() => {
-    // Topics selection default (Select All)
-    if (availableTopics.length > 0 && selectedTopics.length === 0) {
+    // Topics selection default (Select All initially, but wait if upload happens)
+    if (availableTopics.length > 0 && selectedTopics.length === 0 && !syllabusFile) {
       setSelectedTopics(availableTopics.map(t => t.name));
     }
 
@@ -50,7 +55,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     } else {
       setObjectiveType(null); // Reset for math
     }
-  }, [category]);
+  }, [category, syllabusFile]);
 
   const schoolOptions = [
     "6º Ano (Fundamental II)", "7º Ano (Fundamental II)", "8º Ano (Fundamental II)", "9º Ano (Fundamental II)",
@@ -75,6 +80,39 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       setSelectedBoards(selectedBoards.filter(b => b !== board));
     } else {
       setSelectedBoards([...selectedBoards, board]);
+    }
+  };
+
+  // --- SYLLABUS UPLOAD HANDLER ---
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSyllabusFile(file);
+      
+      // Automatic Analysis
+      setIsAnalyzingSyllabus(true);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64String = reader.result as string;
+          // Extract base64 part (remove data:application/pdf;base64,)
+          const base64Data = base64String.split(',')[1];
+          
+          const analysis = await analyzeSyllabus(base64Data, file.type);
+          
+          if (analysis.matchedTopics.length > 0) {
+             setSelectedTopics(analysis.matchedTopics);
+             setSyllabusSummary(analysis.summary);
+          } else {
+             setSyllabusSummary("Nenhum tópico padrão identificado, mas o contexto será usado.");
+          }
+          setIsAnalyzingSyllabus(false);
+        };
+        reader.readAsDataURL(file);
+      } catch (err) {
+        console.error(err);
+        setIsAnalyzingSyllabus(false);
+      }
     }
   };
 
@@ -142,7 +180,8 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       deadline, 
       chosenMinutes,
       selectedTopics,
-      category // Pass category to enforce strict module boundaries
+      category, // Pass category to enforce strict module boundaries
+      syllabusSummary // Pass extracted syllabus context
     );
 
     const newPlan: StudyPlan = {
@@ -151,7 +190,8 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       deadline,
       dailyMinutes: chosenMinutes,
       generatedSchedule: schedule,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      syllabusContext: syllabusSummary
     };
 
     onPlanCreated(newPlan);
@@ -210,49 +250,81 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* CONCURSOS MODULE: Board Selection (Replaces Specific Goal) */}
+      {/* CONCURSOS MODULE: Board Selection & Syllabus Upload */}
       {category === 'concursos' && (
-        <div className="space-y-4 animate-in slide-in-from-top-4">
-          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-6">
+        <div className="space-y-6 animate-in slide-in-from-top-4">
+          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
              <h3 className="font-bold text-indigo-900 flex items-center gap-2">
                 <Gavel className="w-5 h-5" /> Configuração de Concurso Público
              </h3>
              <p className="text-xs text-indigo-700 mt-1">
-               Neste módulo, não perguntamos seu foco principal pois ele é, por definição, aprovação em cargos públicos.
+               Neste módulo, o foco é a aprovação baseada no Edital e Banca.
              </p>
           </div>
 
-          <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
-            <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">1</span>
-            Selecione as Bancas Prioritárias:
-          </label>
-          <p className="text-xs text-slate-500 -mt-2">O algoritmo irá priorizar questões e estilos destas organizadoras.</p>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {examBoards.map((board) => {
-              const isSelected = selectedBoards.includes(board);
-              return (
-                <button 
-                  key={board} 
-                  type="button" 
-                  onClick={() => toggleBoard(board)} 
-                  className={`px-4 py-3 rounded-lg text-sm font-medium border transition-all text-left flex items-center justify-between ${
-                    isSelected 
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-[1.02]' 
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                  }`}
-                >
-                  <span className="flex items-center gap-2"><Building2 className="w-4 h-4 opacity-70"/> {board}</span>
-                  {isSelected && <Check className="w-4 h-4 text-white" />}
-                </button>
-              );
-            })}
+          {/* Syllabus Upload Section - The "Killer Feature" */}
+          <div className="border-2 border-dashed border-indigo-200 rounded-2xl p-6 bg-indigo-50/50 hover:bg-indigo-50 transition-colors text-center relative group">
+             <input 
+               type="file" 
+               accept=".pdf,application/pdf,text/plain,image/*" 
+               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+               onChange={handleFileChange}
+               ref={fileInputRef}
+             />
+             <div className="flex flex-col items-center justify-center gap-3">
+               <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-indigo-500 group-hover:scale-110 transition-transform">
+                 {isAnalyzingSyllabus ? <Loader2 className="w-6 h-6 animate-spin"/> : <UploadCloud className="w-6 h-6" />}
+               </div>
+               <div>
+                 <h4 className="font-bold text-indigo-900">Análise Automática de Edital (IA)</h4>
+                 <p className="text-xs text-indigo-600 mt-1 max-w-xs mx-auto">
+                   Arraste o PDF do edital aqui ou clique para selecionar. A IA extrairá os tópicos e configurará seu plano.
+                 </p>
+               </div>
+               {syllabusFile && !isAnalyzingSyllabus && (
+                 <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-indigo-200 mt-2">
+                    <FileText className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs font-bold text-slate-700 truncate max-w-[200px]">{syllabusFile.name}</span>
+                    <Check className="w-4 h-4 text-emerald-500" />
+                 </div>
+               )}
+             </div>
           </div>
-          {selectedBoards.length === 0 && (
-             <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-               <AlertTriangle className="w-3 h-3" /> Se nenhuma for selecionada, o modo será "Geral/Multibanca".
-             </p>
+
+          {syllabusSummary && (
+            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl animate-in fade-in">
+               <h5 className="text-xs font-bold text-emerald-800 uppercase flex items-center gap-1 mb-1">
+                 <Zap className="w-3 h-3" /> Resumo do Edital (IA)
+               </h5>
+               <p className="text-xs text-emerald-700">{syllabusSummary}</p>
+            </div>
           )}
+
+          <div>
+            <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-3">
+              Selecione as Bancas Prioritárias:
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {examBoards.map((board) => {
+                const isSelected = selectedBoards.includes(board);
+                return (
+                  <button 
+                    key={board} 
+                    type="button" 
+                    onClick={() => toggleBoard(board)} 
+                    className={`px-4 py-3 rounded-lg text-sm font-medium border transition-all text-left flex items-center justify-between ${
+                      isSelected 
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-[1.02]' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2"><Building2 className="w-4 h-4 opacity-70"/> {board}</span>
+                    {isSelected && <Check className="w-4 h-4 text-white" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -292,10 +364,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       <div className="pt-4 flex justify-end">
         <button 
           type="submit" 
-          disabled={!deadline || (!specificGoal && category === 'math')}
+          disabled={!deadline || (!specificGoal && category === 'math') || isAnalyzingSyllabus}
           className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg"
         >
-          Próximo <ArrowRight className="w-4 h-4" />
+          {isAnalyzingSyllabus ? 'Analisando...' : 'Próximo'} <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </form>
@@ -304,12 +376,21 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const renderTopicsStep = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8">
       <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
-          <Layers className="w-5 h-5 text-indigo-500" /> Seleção de Tópicos
-        </h3>
-        <p className="text-sm text-slate-500 mb-6">
-          Personalize seu escopo. O algoritmo vai distribuir apenas o que estiver marcado.
-        </p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-indigo-500" /> Seleção de Tópicos
+            </h3>
+            <p className="text-sm text-slate-500">
+              {syllabusFile ? "Tópicos pré-selecionados com base no Edital enviado." : "Personalize seu escopo manualmente."}
+            </p>
+          </div>
+          {syllabusFile && (
+             <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded border border-emerald-200 flex items-center gap-1">
+               <Zap className="w-3 h-3" /> IA Ativada
+             </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
           {availableTopics.map(topic => {

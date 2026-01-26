@@ -140,6 +140,7 @@ export interface StudyPlan {
   dailyMinutes: number;
   generatedSchedule: StudyWeek[];
   createdAt: number;
+  syllabusContext?: string; // Analysis of the uploaded PDF edital
 }
 
 export interface UserProgress {
