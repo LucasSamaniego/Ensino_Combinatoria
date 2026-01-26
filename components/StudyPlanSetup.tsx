@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { StudyPlan, UserProgress, SkillState } from '../types';
 import { generateStudyPath, calculateStudyEffort } from '../services/geminiService';
@@ -80,7 +81,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const getFullGoalDescription = () => {
     if (category === 'concursos') {
       const boardsStr = selectedBoards.length > 0 ? selectedBoards.join(', ') : 'Todas as Principais';
-      return `Aprovação em Concurso Público. Foco total no estilo e jurisprudência das seguintes BANCAS: ${boardsStr}.`;
+      return `Aprovação em Concurso Público. FILTRO DE BANCAS: [${boardsStr}]. Foco total no estilo e jurisprudência destas organizadoras.`;
     }
 
     if (objectiveType === 'school') {

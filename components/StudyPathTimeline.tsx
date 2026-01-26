@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { StudyPlan, StudyWeek } from '../types';
-import { Calendar, CheckCircle2, Circle, Clock, MapPin, Flag, Play, ChevronDown, ChevronUp, Lock, Download, FileDown } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Clock, MapPin, Flag, Play, ChevronDown, ChevronUp, Lock, Download, FileDown, Hourglass } from 'lucide-react';
 
 // Declare html2pdf on window
 declare global {
@@ -55,6 +55,14 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
       setIsDownloading(false);
       alert("Erro ao gerar PDF. Tente novamente.");
     }
+  };
+
+  // Helper to format studied hours
+  const formatStudiedTime = (minutes: number | undefined) => {
+    if (!minutes) return "0h 0m";
+    const h = Math.floor(minutes / 60);
+    const m = Math.floor(minutes % 60);
+    return `${h}h ${m}m`;
   };
 
   return (
@@ -124,10 +132,12 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
           <div className="relative space-y-4 before:absolute before:left-[27px] before:top-4 before:h-[calc(100%-24px)] before:w-0.5 before:bg-slate-200 before:z-0">
             {plan.generatedSchedule.map((week, idx) => {
               const status = getWeekStatus(idx);
-              // For PDF export, we want to expand all relevant items or keep compact. 
-              // Usually compact is better for PDF, but detailed is better for studying.
-              // We'll rely on user interaction for web, but for PDF we just capture what's visible.
               const isExpanded = expandedWeek === idx || status === 'active';
+              
+              // Calculate weekly study progress
+              const studied = week.studiedMinutes || 0;
+              const targetWeekly = plan.dailyMinutes * 5; // Assuming 5 study days per week
+              const percentStudied = Math.min(100, Math.round((studied / targetWeekly) * 100));
 
               return (
                 <div 
@@ -158,7 +168,7 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                     }`}
                   >
                     <div className={`p-5 flex items-center justify-between ${status === 'active' ? 'bg-indigo-50/50' : ''}`}>
-                      <div>
+                      <div className="flex-grow">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
                             status === 'active' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
@@ -178,9 +188,22 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                         <h4 className={`font-bold ${status === 'active' ? 'text-indigo-900 text-lg' : 'text-slate-700'}`}>
                           {week.theme}
                         </h4>
+                        
+                        {/* Weekly Time Tracker */}
+                        {status === 'active' && (
+                          <div className="mt-3 flex items-center gap-3">
+                             <div className="flex-grow max-w-[200px] h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${percentStudied}%` }}></div>
+                             </div>
+                             <div className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                               <Hourglass className="w-3 h-3" />
+                               {formatStudiedTime(week.studiedMinutes)} estudados
+                             </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="text-slate-400 html2pdf__ignore">
+                      <div className="text-slate-400 html2pdf__ignore ml-4">
                         {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                       </div>
                     </div>
@@ -208,6 +231,14 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                               Começar Estudo da Semana
                             </button>
                           </div>
+                        )}
+                        
+                        {/* Summary of study time for completed weeks */}
+                        {status === 'completed' && (
+                           <div className="mt-4 pt-2 border-t border-slate-100 text-xs text-slate-400 flex items-center gap-2">
+                              <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              Semana concluída com {formatStudiedTime(week.studiedMinutes)} de estudo.
+                           </div>
                         )}
                       </div>
                     )}

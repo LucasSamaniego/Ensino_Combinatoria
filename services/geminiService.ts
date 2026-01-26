@@ -68,16 +68,28 @@ export const generateProblem = async (
 
   } else {
     // --- Lógica para Concursos (STRICT ARCHIVE MODE) ---
-    // A IA deve agir como um buscador de banco de dados, não como um criador.
-    
     persona = "Você é um ARQUIVISTA DE PROVAS E BANCO DE QUESTÕES (Crawler de Concursos).";
     
-    // Lógica Estrita de Filtro de Banca
+    // Lógica Estrita de Filtro de Banca (ZERO TOLERANCE)
     const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco"));
-    const boardInstruction = hasSpecificBoards 
-      ? `FILTRO DE BANCA OBRIGATÓRIO (EXCLUSIVE MODE): ${contextInfo}. 
-         \nATENÇÃO CRÍTICA: É ESTRITAMENTE PROIBIDO trazer questões de bancas que não estejam listadas no filtro acima. Se o usuário pediu 'FGV', traga APENAS FGV. Se não encontrar exata, procure outra questão DA MESMA BANCA sobre tema similar, mas NÃO mude de banca.` 
-      : "Bancas sugeridas: FGV, Cebraspe, Vunesp, FCC. (Busque das maiores se não houver filtro).";
+    
+    let boardInstruction = "";
+    
+    if (hasSpecificBoards) {
+        boardInstruction = `
+        PROTOCOLOS DE FILTRAGEM (ZERO TOLERANCE):
+        1. O usuário definiu um filtro EXCLUSIVO: ${contextInfo}.
+        2. SUA TAREFA É RETORNAR UMA QUESTÃO APENAS DESSAS BANCAS ESPECÍFICAS.
+        3. É ESTRITAMENTE PROIBIDO retornar questões de bancas que não estejam na lista acima.
+        4. SE NÃO EXISTIR questão exata para o subtópico "${subSkillName}" nessas bancas:
+           - NÃO mude de banca.
+           - Em vez disso, busque uma questão da MESMA BANCA sobre o tópico pai "${topicName}" ou um assunto correlato.
+           - A fidelidade à BANCA é mais importante que a fidelidade ao SUBTÓPICO.
+        5. Se o usuário pediu "FGV", e você retornar "Cebraspe", isso será considerado ERRO CRÍTICO.
+        `;
+    } else {
+        boardInstruction = "Bancas sugeridas: FGV, Cebraspe, Vunesp, FCC. (Busque das maiores se não houver filtro específico).";
+    }
 
     constraints = `
       ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM).
@@ -86,7 +98,7 @@ export const generateProblem = async (
       SUA MISSÃO:
       1.  Localize na sua base de dados uma questão REAL que caiu em prova recentemente (anos 2022, 2023 ou 2024).
       2.  ${boardInstruction}
-      3.  Tópico: ${topicName} > ${subSkillName}.
+      3.  Tópico Alvo: ${topicName} > ${subSkillName}.
       4.  COPIE O ENUNCIADO EXATAMENTE como estava no caderno de prova.
       5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam.
       
@@ -199,6 +211,7 @@ export const generateProblem = async (
 };
 
 export const generatePlacementQuestions = async (category: 'math' | 'concursos', subCategory?: string): Promise<Question[]> => {
+  // Mantida lógica original do placement
   let persona = "";
   let contentFilter = "";
   
@@ -296,19 +309,25 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     `;
   } else if (style === 'Concurso') {
     styleInstruction = `
-      MODO ARQUIVO DE QUESTÕES (VERBATIM).
-      Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores (2022-2024).
+      MODO ARQUIVO DE QUESTÕES (VERBATIM) COM FILTRO RÍGIDO.
+      
+      INSTRUÇÃO DE QUANTIDADE (REDUÇÃO PREFERENCIAL):
+      Você foi solicitado a buscar ${questionCount} questões.
+      PORÉM, se você não encontrar ${questionCount} questões EXATAS das bancas selecionadas (se houver contexto) ou grandes bancas:
+      -> RETORNE MENOS QUESTÕES. 
+      -> É MELHOR retornar 3 questões corretas da banca certa do que 10 questões erradas ou inventadas.
+      -> NÃO invente questões.
+      -> NÃO pegue questões de vestibulares se o pedido for concurso.
+      
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
-      NÃO invente questões. COPIE questões que realmente caíram.
       MANDATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (Órgão - Ano).
-      FIREWALL: Não inclua questões de vestibulares (ENEM/FUVEST) a menos que explicitamente solicitado. Foque em CARREIRAS PÚBLICAS.
     `;
   } else if (style === 'Military') {
     styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica. Cite o ano da prova.";
   }
 
   const prompt = `
-    Gere um SIMULADO de ${questionCount} questões no estilo ${style} nível ${difficulty}.
+    Gere um SIMULADO de ATÉ ${questionCount} questões no estilo ${style} nível ${difficulty}.
     ${styleInstruction}
     ${topicRestriction}
     

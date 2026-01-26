@@ -239,10 +239,44 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     setView('practice');
   };
 
+  // Helper function to update study plan time
+  const updateStudyPlanTime = (currentProgress: UserProgress, timeSeconds: number) => {
+    if (currentProgress.studyPlan && currentProgress.studyPlan.category === category) {
+      // Calculate current week index based on plan start date
+      const daysPassed = Math.floor((Date.now() - currentProgress.studyPlan.createdAt) / (1000 * 60 * 60 * 24));
+      const currentWeekIndex = Math.min(Math.floor(daysPassed / 7), currentProgress.studyPlan.generatedSchedule.length - 1);
+      
+      const newSchedule = [...currentProgress.studyPlan.generatedSchedule];
+      if (newSchedule[currentWeekIndex]) {
+        const currentMinutes = newSchedule[currentWeekIndex].studiedMinutes || 0;
+        newSchedule[currentWeekIndex] = {
+          ...newSchedule[currentWeekIndex],
+          studiedMinutes: currentMinutes + (timeSeconds / 60)
+        };
+        
+        return {
+          ...currentProgress.studyPlan,
+          generatedSchedule: newSchedule
+        };
+      }
+    }
+    return currentProgress.studyPlan;
+  };
+
   const handleInteractionComplete = (interaction: Interaction) => {
+    // 1. Update Knowledge Model
     const newSkills = updateHierarchicalKnowledge(progress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
     const newHistory = [...progress.history, interaction];
-    const updated = { ...progress, skills: newSkills, history: newHistory };
+    
+    let updated = { ...progress, skills: newSkills, history: newHistory };
+
+    // 2. Update Study Time Tracking
+    if (progress.studyPlan) {
+      const updatedPlan = updateStudyPlanTime(updated, interaction.timeSpentSeconds);
+      if (updatedPlan) {
+        updated = { ...updated, studyPlan: updatedPlan };
+      }
+    }
     
     setProgress(updated);
     if (onUpdateProgress) onUpdateProgress(updated);
@@ -258,19 +292,30 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     // 1. Consolida o progresso FINAL antes de sair
     let currentProgress = { ...progress };
 
-    if (subCategory !== 'weekly') {
-      interactions.forEach(interaction => {
+    let totalSimTime = 0;
+
+    interactions.forEach(interaction => {
+       totalSimTime += interaction.timeSpentSeconds;
+       if (subCategory !== 'weekly') { // Em modo weekly, o skill update é feito one-by-one
          const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
          const newHistory = [...currentProgress.history, interaction];
          currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
-      });
-    } else {
-      // Se for modo semanal, as habilidades já foram atualizadas via handleInteractionComplete (passado como onUpdateSkill)
-      // Mas precisamos gerar Flashcards para os tópicos praticados
+       }
+    });
+
+    // 2. Update Study Plan Time (Batch)
+    if (currentProgress.studyPlan) {
+      const updatedPlan = updateStudyPlanTime(currentProgress, totalSimTime);
+      if (updatedPlan) {
+        currentProgress = { ...currentProgress, studyPlan: updatedPlan };
+      }
+    }
+
+    // 3. Flashcards generation logic for weekly mode
+    if (subCategory === 'weekly') {
       const topicsPracticed = new Set(interactions.map(i => i.topicId));
       let newCards = [...currentProgress.flashcards];
       
-      // Gera flashcards em paralelo para os tópicos que ainda não têm cartões
       const promises = Array.from(topicsPracticed).map(async (tId) => {
         const hasCards = newCards.some(c => c.topicId === tId);
         if (!hasCards) {
@@ -294,7 +339,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     if (onUpdateProgress) onUpdateProgress(currentProgress);
     if (user) saveUserProgress(user.uid, currentProgress);
     
-    // 2. Navegação
+    // 4. Navegação
     if (subCategory === 'weekly') {
       // Se acabou a semana, sai do módulo
       onExit();
@@ -306,15 +351,30 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handleCardReview = (cardId: string, grade: ReviewGrade) => {
+    // Estimativa: 30 segundos por carta revisada
+    const estimatedTime = 30; 
+    
+    let updatedProgress = { ...progress };
+
+    // Update SRS
     const newDeck = progress.flashcards.map(card => {
       if (card.id === cardId) {
         return { ...card, srs: calculateNextReview(card.srs, grade) };
       }
       return card;
     });
-    const updated = { ...progress, flashcards: newDeck };
-    setProgress(updated);
-    if (onUpdateProgress) onUpdateProgress(updated);
+    updatedProgress.flashcards = newDeck;
+
+    // Update Time
+    if (progress.studyPlan) {
+      const updatedPlan = updateStudyPlanTime(updatedProgress, estimatedTime);
+      if (updatedPlan) {
+        updatedProgress.studyPlan = updatedPlan;
+      }
+    }
+
+    setProgress(updatedProgress);
+    if (onUpdateProgress) onUpdateProgress(updatedProgress);
   };
 
   const handleToggleFavorite = (question: Question) => {

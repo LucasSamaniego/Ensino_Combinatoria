@@ -130,6 +130,7 @@ export interface StudyWeek {
   theme: string;
   topicsToStudy: string[];
   focusArea: 'Fixation' | 'Practice' | 'Revision' | 'Advanced';
+  studiedMinutes?: number; // New field for time tracking
 }
 
 export interface StudyPlan {
