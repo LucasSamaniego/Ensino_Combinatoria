@@ -72,8 +72,12 @@ export const generateProblem = async (
     
     persona = "Você é um ARQUIVISTA DE PROVAS E BANCO DE QUESTÕES (Crawler de Concursos).";
     
-    // Se tiver contexto (ex: "Foco na banca FGV"), usa ele. Senão, busca das grandes.
-    const userTarget = contextInfo ? `FILTRO DE BUSCA ATIVO: ${contextInfo}` : "Bancas: FGV, Cebraspe, Vunesp, FCC.";
+    // Lógica Estrita de Filtro de Banca
+    const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco"));
+    const boardInstruction = hasSpecificBoards 
+      ? `FILTRO DE BANCA OBRIGATÓRIO (EXCLUSIVE MODE): ${contextInfo}. 
+         \nATENÇÃO CRÍTICA: É ESTRITAMENTE PROIBIDO trazer questões de bancas que não estejam listadas no filtro acima. Se o usuário pediu 'FGV', traga APENAS FGV. Se não encontrar exata, procure outra questão DA MESMA BANCA sobre tema similar, mas NÃO mude de banca.` 
+      : "Bancas sugeridas: FGV, Cebraspe, Vunesp, FCC. (Busque das maiores se não houver filtro).";
 
     constraints = `
       ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM).
@@ -81,7 +85,7 @@ export const generateProblem = async (
       
       SUA MISSÃO:
       1.  Localize na sua base de dados uma questão REAL que caiu em prova recentemente (anos 2022, 2023 ou 2024).
-      2.  ${userTarget} (Priorize ABSOLUTAMENTE questões dessa(s) banca(s)).
+      2.  ${boardInstruction}
       3.  Tópico: ${topicName} > ${subSkillName}.
       4.  COPIE O ENUNCIADO EXATAMENTE como estava no caderno de prova.
       5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam.
@@ -89,7 +93,6 @@ export const generateProblem = async (
       REGRAS DE METADADOS:
       - 'banca': Deve ser o nome real da organizadora (ex: FGV).
       - 'source': Deve conter "Órgão - Cargo - Ano" (ex: "TJRN - Técnico Judiciário - 2023").
-      - Se você não encontrar uma questão exata para este tópico e banca, procure de uma banca similar, mas DEIXE CLARO a origem.
     `;
 
     visualInstruction = `
@@ -293,7 +296,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     `;
   } else if (style === 'Concurso') {
     styleInstruction = `
-      MODO ARQUIVO DE QUESTÕES (VERBATIM):
+      MODO ARQUIVO DE QUESTÕES (VERBATIM).
       Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores (2022-2024).
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
       NÃO invente questões. COPIE questões que realmente caíram.
