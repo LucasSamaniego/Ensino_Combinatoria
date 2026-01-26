@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { getSmartQuestion, saveQuestionToLibrary } from '../services/questionDatabase';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar, Briefcase } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 import { useAuth } from '../contexts/AuthContext';
@@ -209,21 +209,23 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
               ) : question ? (
                 <div className="animate-in fade-in duration-500">
                    
-                   {/* Banca Identifier for Concursos */}
-                   <div className="flex gap-2 mb-6">
-                     {question.banca && (
-                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
-                          <Building2 className="w-3.5 h-3.5" />
-                          Banca: {question.banca}
-                       </div>
-                     )}
-                     {question.source && (
-                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-xs font-bold uppercase tracking-tight">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {question.source}
-                       </div>
-                     )}
-                   </div>
+                   {/* Metadata Header for Concursos */}
+                   {(question.banca || question.source) && (
+                     <div className="mb-6 flex flex-wrap gap-2 pb-4 border-b border-gray-100">
+                       {question.banca && (
+                         <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
+                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                            {question.banca}
+                         </div>
+                       )}
+                       {question.source && (
+                         <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-xs font-bold uppercase tracking-tight">
+                            <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+                            {question.source}
+                         </div>
+                       )}
+                     </div>
+                   )}
 
                    {question.visualization && (
                       <div className="mb-6">
@@ -231,7 +233,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                       </div>
                    )}
 
-                   <div className="text-xl text-gray-800 leading-relaxed mb-8">
+                   <div className="text-xl text-gray-800 leading-relaxed mb-8 font-serif">
                      <MathRenderer text={question.text} />
                    </div>
 

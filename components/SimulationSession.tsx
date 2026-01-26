@@ -5,7 +5,7 @@ import { generateSimulationQuestions, generateProblem } from '../services/gemini
 import { getDifficultyForMastery, updateHierarchicalKnowledge } from '../services/tracingService';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
-import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain, Briefcase } from 'lucide-react';
 
 interface SimulationSessionProps {
   config: SimulationConfig;
@@ -453,6 +453,24 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                  </div>
 
                  <div className="p-8 flex-grow">
+                    {/* Metadata for Concursos */}
+                    {(currentQ.banca || currentQ.source) && (
+                     <div className="mb-6 flex flex-wrap gap-2 pb-4 border-b border-gray-100">
+                       {currentQ.banca && (
+                         <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
+                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                            {currentQ.banca}
+                         </div>
+                       )}
+                       {currentQ.source && (
+                         <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-xs font-bold uppercase tracking-tight">
+                            <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+                            {currentQ.source}
+                         </div>
+                       )}
+                     </div>
+                    )}
+
                     {currentQ.visualization && <div className="mb-6"><Illustration data={currentQ.visualization} /></div>}
                     
                     <div className="text-xl text-gray-800 leading-relaxed mb-8">
@@ -574,6 +592,24 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Metadata for Concursos - Classic Mode */}
+            {(currentQ.banca || currentQ.source) && (
+              <div className="mb-6 flex flex-wrap gap-2 pb-4 border-b border-gray-100">
+                {currentQ.banca && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
+                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                    {currentQ.banca}
+                  </div>
+                )}
+                {currentQ.source && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-xs font-bold uppercase tracking-tight">
+                    <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+                    {currentQ.source}
+                  </div>
+                )}
+              </div>
+            )}
             
             <div className="text-lg text-gray-900 leading-relaxed mb-8">
                <MathRenderer text={currentQ.text} />

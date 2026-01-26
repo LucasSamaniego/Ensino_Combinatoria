@@ -82,10 +82,10 @@ export const generateProblem = async (
       2. A questão deve ser sobre o tópico: ${topicName} > ${subSkillName}.
       3. A dificuldade deve ser compatível com: ${currentDifficulty}.
       
-      OBRIGATORIEDADE DE METADADOS:
-      - O campo "banca" TEM QUE SER UMA BANCA REAL (ex: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO).
-      - O campo "source" TEM QUE CONTER O ÓRGÃO E O ANO (ex: "Polícia Federal 2021", "TJ-SP 2023", "Auditor RFB 2014").
-      - O texto deve ser a reprodução fiel do enunciado original (ou o mais próximo possível).
+      OBRIGATORIEDADE DE METADADOS (VISUALIZAÇÃO NO APP):
+      - O campo "banca" TEM QUE SER PREENCHIDO (ex: FGV, CEBRASPE, VUNESP).
+      - O campo "source" TEM QUE CONTER: "Órgão - Ano" (ex: "Polícia Federal - 2021", "TJ-SP - 2023", "Auditor RFB - 2014").
+      - SE NÃO SOUBER A BANCA/ANO, NÃO USE A QUESTÃO.
       
       ESTILO E FIREWALL:
       - Se for Raciocínio Lógico (RLM): Foque em estruturas lógicas, "se então", tabelas-verdade, exatamente como cobrado em bancas. 
@@ -122,7 +122,7 @@ export const generateProblem = async (
       "hints": ["Dica sobre a banca", "Dica teórica"],
       "miniTheory": "Resumo do conceito cobrado...",
       "banca": "NOME DA BANCA (ex: FGV)",
-      "source": "Órgão + Ano (ex: TJ-RJ 2022)",
+      "source": "ÓRGÃO - ANO (ex: TJ-RJ - 2022)",
       "visualization": { "type": "none" }
     }
   `;
@@ -178,8 +178,8 @@ export const generateProblem = async (
       visualization: safeViz,
       hints: data.hints || [],
       miniTheory: data.miniTheory,
-      banca: data.banca,
-      source: data.source || "Questão de Concurso"
+      banca: data.banca || "Banca Desconhecida",
+      source: data.source || "Concurso Público"
     };
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -218,7 +218,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       - 1 de Direito Constitucional (Banca FCC ou VUNESP).
       - 1 de Direito Penal.
       - 1 de Raciocínio Lógico (Lógica Proposicional).
-      OBRIGATÓRIO: Cite a Banca e o Ano/Órgão em cada questão.
+      OBRIGATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (ex: TJ-SP 2021) em cada questão.
       PROIBIDO: Não inclua matemática escolar básica (frações, geometria plana simples) que não seja de concurso.
     `;
   }
@@ -301,7 +301,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores.
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
       NÃO invente questões. Reproduza questões que realmente caíram.
-      Preencha 'banca' e 'source' (Órgão/Ano) obrigatoriamente.
+      MANDATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (Órgão - Ano).
       FIREWALL: Não inclua questões de vestibulares (ENEM/FUVEST) a menos que explicitamente solicitado. Foque em CARREIRAS PÚBLICAS.
     `;
   } else if (style === 'Military') {
