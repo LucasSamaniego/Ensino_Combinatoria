@@ -33,12 +33,14 @@ export const generateProblem = async (
   
   let persona = "";
   let constraints = "";
+  let visualInstruction = "";
   
   // Verificação se é Matemática Básica (Módulos 0-7)
   const isBasicMath = topicId.startsWith('math_basics_');
   const isLogic = topicId === TopicId.RACIOCINIO_LOGICO;
 
   if (category === 'math') {
+    // --- Lógica para Matemática (Pode gerar ou buscar) ---
     if (isBasicMath) {
       persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
       constraints = `
@@ -46,45 +48,50 @@ export const generateProblem = async (
         1. **Objetivo**: Realfabetização matemática. Priorize compreensão conceitual antes de algoritmos.
         2. **Linguagem**: Simples, concreta, acessível e motivadora. Evite punição ou tecnicismo excessivo.
         3. **Contexto**: Use exemplos do cotidiano (dinheiro, objetos, situações reais).
-        4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro (ex: confusão de valor posicional), não apenas a resposta.
-        5. **Microprogressão**: A questão deve ser adequada para quem tem defasagem escolar ou ansiedade matemática.
-        6. **Visualização**: Se possível, solicite visualização do tipo 'slots' (para valor posicional) ou 'venn' (para conjuntos/classificação).
-        7. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia e memorização mecânica.
-        
-        CONTEXTO ESPECÍFICO DO TÓPICO:
-        - Se for Tópico 1 (Noção de Número): Foco em quantidade, ordem e decomposição.
-        - Se for Tópico 2 (Sistema Decimal): Foco em valor posicional e trocas (unidade/dezena).
-        - Se for Tópico 3/4 (Operações): Foco no significado (juntar, tirar, agrupar) e não na conta armada.
-        - Se for Tópico 7 (Interpretação): Foco em identificar dados e a pergunta.
+        4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro.
+        5. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia.
       `;
     } else {
       persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
       constraints = `
         - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
         - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
-        - CONTEÚDO: Exclusivamente Matemática/Combinatória avançada. Proibido temas de Direito ou Concursos.
       `;
     }
+    
+    // Instrução visual para matemática (gera slots, venn, etc se necessário)
+    visualInstruction = `
+      INSTRUÇÃO DE MÍDIA:
+      NÃO gere imagens (bits). O campo "visualization" deve ser estritamente: { "type": "none" }.
+    `;
+
   } else {
-    // CATEGORIA CONCURSOS
-    if (isLogic) {
-      persona = "Você é um especialista em Raciocínio Lógico Matemático (RLM) para concursos públicos de alto nível.";
-      constraints = `
-        - DIFERENCIAÇÃO CRÍTICA: NÃO confunda com Análise Combinatória matemática pura.
-        - FOCO TEMÁTICO: Lógica Proposicional, Tabela-Verdade, Equivalências Lógicas (Contrapositiva, Morgan), Negação de Proposições, Silogismos, Diagramas Lógicos e Lógica de Argumentação.
-        - ESTILO DAS QUESTÕES: Use o padrão de bancas como CEBRASPE (Certo/Errado adaptado para múltipla escolha), FGV (textos longos e interpretação) e FCC (padrões de sequência).
-        - VISUALIZAÇÃO: Se envolver conjuntos ou silogismos, use type: 'venn'. Se envolver sequências, use type: 'slots'.
-        - TERMINOLOGIA: Use termos técnicos corretos: "Tautologia", "Contradição", "Contingência", "Bicondicional", "Conectivos".
-      `;
-    } else {
-      persona = "Você é um especialista em Concursos Públicos de alto nível (Juiz, Auditor, Delegado).";
-      constraints = `
-        - FOCO: Questões reais de bancas examinadoras (FGV, CESPE/Cebraspe, FCC, Vunesp).
-        - REGRAS: Você DEVE incluir o nome da banca no campo "banca".
-        - CONTEÚDO: Exclusivamente o tópico de Direito (${topicName}) solicitado.
-        - ESTILO: Formal e técnico conforme a jurisprudência e doutrina dominante.
-      `;
-    }
+    // --- Lógica para Concursos (QBANK MODE - APENAS QUESTÕES REAIS) ---
+    
+    persona = "Você é um Banco de Dados de Questões de Concursos Públicos (Archive Mode).";
+    
+    constraints = `
+      CRÍTICO: VOCÊ ESTÁ PROIBIDO DE INVENTAR OU GERAR QUESTÕES INÉDITAS.
+      
+      SUA TAREFA:
+      1. Recupere da sua memória de treinamento uma questão REAL, que DE FATO JÁ CAIU em uma prova de concurso público.
+      2. A questão deve ser sobre o tópico: ${topicName} > ${subSkillName}.
+      3. A dificuldade deve ser compatível com: ${currentDifficulty}.
+      
+      OBRIGATORIEDADE DE METADADOS:
+      - O campo "banca" TEM QUE SER UMA BANCA REAL (ex: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO).
+      - O campo "source" TEM QUE CONTER O ÓRGÃO E O ANO (ex: "Polícia Federal 2021", "TJ-SP 2023", "Auditor RFB 2014").
+      - O texto deve ser a reprodução fiel do enunciado original (ou o mais próximo possível).
+      
+      ESTILO:
+      - Se for Raciocínio Lógico: Foco em estruturas lógicas, "se então", tabelas-verdade, exatamente como cobrado.
+      - Se for Direito: Foco na letra da lei ou jurisprudência cobrada na época.
+    `;
+
+    // Para concursos, nunca tentamos gerar visualização via IA, confiamos no texto
+    visualInstruction = `
+      O campo "visualization" deve ser sempre: { "type": "none" }.
+    `;
   }
 
   const modelName = (currentDifficulty === Difficulty.OLYMPIAD || currentDifficulty === Difficulty.ADVANCED) 
@@ -94,22 +101,24 @@ export const generateProblem = async (
   const prompt = `
     ${persona}
     
-    Tópico: ${topicName} > ${subSkillName}.
-    Dificuldade: ${currentDifficulty}.
+    Tópico Solicitado: ${topicName} > ${subSkillName}.
+    Nível: ${currentDifficulty}.
     
     ${constraints}
+    ${visualInstruction}
     ${LATEX_INSTRUCTION}
 
     Retorne APENAS o JSON no esquema:
     {
-      "text": "Enunciado da questão (contextualizado e claro)...",
-      "options": ["A", "B", "C", "D", "E"],
-      "correctAnswer": "A opção exata",
-      "explanation": "Explicação passo a passo, focada na causa do erro e no conceito...",
-      "hints": ["Dica conceitual 1", "Dica prática 2"],
-      "miniTheory": "Breve explicação do conceito chave (sem decoreba)...",
-      "banca": "Nome da Banca (apenas se for Concurso)",
-      "visualization": { "type": "slots|circular|venn|urn|none", "data": {...}, "label": "..." }
+      "text": "Enunciado da questão (exatamente como caiu na prova)...",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
+      "correctAnswer": "Texto da alternativa correta",
+      "explanation": "Gabarito comentado detalhado, citando a lei ou a lógica...",
+      "hints": ["Dica sobre a banca", "Dica teórica"],
+      "miniTheory": "Resumo do conceito cobrado...",
+      "banca": "NOME DA BANCA (ex: FGV)",
+      "source": "Órgão + Ano (ex: TJ-RJ 2022)",
+      "visualization": { "type": "none" }
     }
   `;
 
@@ -134,19 +143,7 @@ export const generateProblem = async (
             visualization: {
               type: Type.OBJECT,
               properties: {
-                type: { type: Type.STRING },
-                data: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    count: { type: Type.NUMBER, nullable: true },
-                    values: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
-                    items: { type: Type.NUMBER, nullable: true },
-                    labels: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
-                    sets: { type: Type.NUMBER, nullable: true },
-                    balls: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true }
-                  }
-                },
-                label: { type: Type.STRING, nullable: true }
+                type: { type: Type.STRING, enum: ['none'] }
               },
               required: ['type']
             }
@@ -158,6 +155,11 @@ export const generateProblem = async (
 
     const data = JSON.parse(response.text || '{}');
     
+    // Força type 'none' caso a IA alucine
+    const safeViz = data.visualization && data.visualization.type === 'none' 
+      ? data.visualization 
+      : { type: 'none' };
+
     return {
       id: crypto.randomUUID(),
       topicId,
@@ -168,11 +170,11 @@ export const generateProblem = async (
       options: data.options,
       correctAnswer: data.correctAnswer,
       explanation: data.explanation,
-      visualization: data.visualization,
+      visualization: safeViz,
       hints: data.hints || [],
       miniTheory: data.miniTheory,
       banca: data.banca,
-      source: data.source
+      source: data.source || "Questão de Concurso"
     };
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -204,8 +206,15 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
     }
   } else {
-    persona = "Especialista em Bancas de Concursos (FGV/CESPE).";
-    contentFilter = "Gere 4 questões variadas: 1 de Direito Administrativo, 1 de Direito Constitucional, 1 de Direito Penal e 1 de Raciocínio Lógico (Lógica Proposicional).";
+    persona = "Banco de Questões de Concursos (Bibliotecário).";
+    contentFilter = `
+      RECUPERE 4 questões REAIS de concursos públicos anteriores.
+      - 1 de Direito Administrativo (Banca FGV ou CEBRASPE).
+      - 1 de Direito Constitucional (Banca FCC ou VUNESP).
+      - 1 de Direito Penal.
+      - 1 de Raciocínio Lógico (Lógica Proposicional).
+      OBRIGATÓRIO: Cite a Banca e o Ano/Órgão em cada questão.
+    `;
   }
 
   const prompt = `
@@ -213,7 +222,6 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
     Estilo: ${persona}.
     Conteúdo: ${contentFilter}
     
-    ${category === 'concursos' ? 'Identifique a banca de cada questão.' : ''}
     ${LATEX_INSTRUCTION}
   `;
 
@@ -278,28 +286,19 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
   if (style === 'Olympiad') {
     styleInstruction = `
       ATENÇÃO: Este é um simulado de NÍVEL OLÍMPICO INTERNACIONAL.
-      
-      REFERÊNCIAS OBRIGATÓRIAS:
-      Utilize como inspiração questões de competições renomadas mundialmente, adaptadas para o nível dos tópicos solicitados.
-      Exemplos de fontes:
-      - Brasil: OBMEP (Nível 1/2), OBM.
-      - Estados Unidos: AMC 8, AMC 10.
-      - Rússia: Olimpíadas de Moscou, Torneio das Cidades (Nível iniciante).
-      - Outros: Canguru Matemático, Olimpíadas da China, Hungria ou Índia.
-
-      OBRIGATÓRIO:
-      Para CADA questão, você DEVE especificar a fonte real (Nome da Olimpíada, Ano, País) no campo 'source'. 
-      Exemplo: "OBMEP 2015 - Brasil" ou "AMC 8 2020 - EUA".
-
-      CARACTERÍSTICAS DAS QUESTÕES:
-      - Devem exigir 'sacadas' (insights) criativos e não apenas aplicação direta de fórmulas.
-      - Foco em Lógica, Invariantes, Princípio da Casa dos Pombos, Paridade, e Geometria Intuitiva (visual).
-      - Enunciados interessantes e desafiadores, típicos de cultura de resolução de problemas.
+      REFERÊNCIAS OBRIGATÓRIAS: OBMEP, OBM, AMC 8/10, Canguru.
+      OBRIGATÓRIO: Citar a fonte real no campo 'source'.
     `;
   } else if (style === 'Concurso') {
-    styleInstruction = "Cite e emule o estilo de bancas como FGV, CESPE, Vunesp, Cesgranrio. Se o tópico for Raciocínio Lógico, foque em Lógica Proposicional e Argumentação.";
+    styleInstruction = `
+      MODO ARQUIVO DE QUESTÕES:
+      Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores.
+      Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
+      NÃO invente questões. Reproduza questões que realmente caíram.
+      Preencha 'banca' e 'source' (Órgão/Ano) obrigatoriamente.
+    `;
   } else if (style === 'Military') {
-    styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica.";
+    styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica. Cite o ano da prova.";
   }
 
   const prompt = `
@@ -307,7 +306,6 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     ${styleInstruction}
     ${topicRestriction}
     
-    Se for Concurso, cite bancas.
     Retorne JSON Array.
     ${LATEX_INSTRUCTION}
   `;
@@ -399,9 +397,6 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
 
 // --- NEW FUNCTIONS: Adaptive Study Path Generation ---
 
-/**
- * Calcula a carga horária recomendada baseada no prazo e nas fraquezas
- */
 export const calculateStudyEffort = async (
   weaknesses: string[],
   goalDescription: string,
@@ -477,25 +472,21 @@ export const generateStudyPath = async (
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   const diffWeeks = Math.ceil(diffDays / 7);
 
-  // Determine if we should plan by days (short term) or weeks (long term)
   const isShortTerm = diffWeeks < 2;
   const timeUnit = isShortTerm ? 'DIAS' : 'SEMANAS';
   const timeQuantity = isShortTerm ? diffDays : diffWeeks;
 
-  // Create a Persona and Constraints based on the Category
   let personaInstruction = "";
   if (category === 'math') {
-    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas.";
-    personaInstruction += " IMPORTANTE: Você está estritamente PROIBIDO de incluir tópicos de Direito, Leis ou Humanas. Foque APENAS em Matemática.";
+    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas. PROIBIDO incluir Direito/Leis.";
   } else if (category === 'concursos') {
-    personaInstruction = "Você é um Especialista em Concursos Públicos (Área Jurídica e Administrativa).";
-    personaInstruction += " IMPORTANTE: Foque APENAS em tópicos de Direito, Legislação e Lógica (RLM) para concursos. Não inclua matemática pura de escola, exceto se for RLM.";
+    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque no Edital: Leis, Jurisprudência e Raciocínio Lógico de Bancas.";
   } else {
     personaInstruction = "Você é um Coordenador Pedagógico Geral.";
   }
 
   const topicConstraint = selectedTopics.length > 0
-    ? `RESTRIÇÃO CRÍTICA DE ESCOPO: O plano de estudos DEVE conter APENAS assuntos EXPLICITAMENTE LISTADOS AQUI: [${selectedTopics.join(', ')}]. NÃO INVENTE TÓPICOS NOVOS e NÃO INCLUA TÓPICOS DE OUTRAS MATÉRIAS.`
+    ? `RESTRIÇÃO CRÍTICA DE ESCOPO: O plano de estudos DEVE conter APENAS assuntos EXPLICITAMENTE LISTADOS AQUI: [${selectedTopics.join(', ')}]. NÃO INVENTE TÓPICOS NOVOS.`
     : '';
 
   const prompt = `
@@ -509,16 +500,13 @@ export const generateStudyPath = async (
 
     DURAÇÃO DO PLANO:
     Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
-    NÃO crie um plano genérico de 12 semanas se o prazo for diferente.
-    Se a unidade for DIAS, o campo "weekNumber" no JSON representará o "Dia".
-    Se a unidade for SEMANAS, o campo "weekNumber" representará a "Semana".
-
+    
     ${topicConstraint}
 
     INSTRUÇÕES DE PLANEJAMENTO:
     1. Distribua APENAS os tópicos selecionados da lista acima ao longo das ${timeQuantity} ${timeUnit}.
     2. Se a lista de tópicos for pequena, aprofunde neles. Se for grande, priorize o básico.
-    3. Gere EXATAMENTE ${timeQuantity} itens no array (nem mais, nem menos).
+    3. Gere EXATAMENTE ${timeQuantity} itens no array.
     
     Retorne JSON Array de Semanas/Dias no seguinte schema:
     [{ "weekNumber": 1, "theme": "Tema Central", "topicsToStudy": ["Tópico 1", "Tópico 2"], "focusArea": "Fixation" | "Practice" | "Revision" | "Advanced" }]

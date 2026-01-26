@@ -243,23 +243,38 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     setView('simulation_session');
   };
 
-  const handleSimulationComplete = (interactions: Interaction[]) => {
+  const handleSimulationComplete = async (interactions: Interaction[]) => {
     // 1. Consolida o progresso FINAL antes de sair
     let currentProgress = { ...progress };
 
-    // Se NÃO for modo semanal (interativo), processamos o lote inteiro de uma vez
     if (subCategory !== 'weekly') {
       interactions.forEach(interaction => {
-         // Ajuste fino nos parâmetros BKT para dar mais sensação de avanço (p_transit 0.2)
          const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
          const newHistory = [...currentProgress.history, interaction];
          currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
       });
     } else {
       // Se for modo semanal, as habilidades já foram atualizadas via handleInteractionComplete (passado como onUpdateSkill)
-      // Mas garantimos que o histórico esteja consistente e salvamos tudo.
-      // O estado 'progress' local já deve ter as atualizações, então apenas confirmamos o salvamento.
-      currentProgress = { ...progress };
+      // Mas precisamos gerar Flashcards para os tópicos praticados
+      const topicsPracticed = new Set(interactions.map(i => i.topicId));
+      let newCards = [...currentProgress.flashcards];
+      
+      // Gera flashcards em paralelo para os tópicos que ainda não têm cartões
+      const promises = Array.from(topicsPracticed).map(async (tId) => {
+        const hasCards = newCards.some(c => c.topicId === tId);
+        if (!hasCards) {
+          const generated = await generateFlashcards(tId);
+          return generated;
+        }
+        return [];
+      });
+
+      const generatedBatches = await Promise.all(promises);
+      generatedBatches.forEach(batch => {
+        newCards = [...newCards, ...batch];
+      });
+
+      currentProgress = { ...currentProgress, flashcards: newCards };
     }
     
     setProgress(currentProgress);
@@ -476,9 +491,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
             userSkills={progress.skills} 
             onComplete={handleSimulationComplete} 
             onCancel={() => subCategory === 'weekly' ? onExit() : setView('simulations')}
-            onUpdateSkill={handleInteractionComplete} // Passa handler para atualizar BKT em tempo real
-            onToggleFavorite={handleToggleFavorite}   // Passa handler de favoritos
-            isFavorite={isFavorite}                   // Passa verificação
+            onUpdateSkill={handleInteractionComplete} 
+            onToggleFavorite={handleToggleFavorite} 
+            isFavorite={isFavorite}
           />
         )}
         {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}

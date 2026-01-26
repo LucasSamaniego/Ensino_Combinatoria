@@ -5,7 +5,7 @@ import { generateSimulationQuestions, generateProblem } from '../services/gemini
 import { getDifficultyForMastery, updateHierarchicalKnowledge } from '../services/tracingService';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
-import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2 } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain } from 'lucide-react';
 
 interface SimulationSessionProps {
   config: SimulationConfig;
@@ -296,6 +296,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   // --- 3. SUMMARY PHASE ---
   if (phase === 'summary') {
     const score = questions.reduce((acc, q, idx) => acc + (q.correctAnswer === userAnswers[idx] ? 1 : 0), 0);
+    const isInteractive = mode === 'interactive';
     
     return (
       <div className="max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom-4">
@@ -307,8 +308,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 text-green-600 rounded-full mb-4 shadow-sm border-4 border-white">
                 <CheckCircle className="w-10 h-10" />
              </div>
-             <h2 className="text-3xl font-black text-slate-900 mb-1">Ciclo Concluído!</h2>
-             <p className="text-slate-500">Confira sua evolução nas habilidades treinadas.</p>
+             <h2 className="text-3xl font-black text-slate-900 mb-1">{isInteractive ? 'Relatório Semanal' : 'Ciclo Concluído!'}</h2>
+             <p className="text-slate-500">Confira o detalhamento da sua evolução e os materiais gerados.</p>
            </div>
            
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -329,6 +330,14 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tópicos Vistos</div>
               </div>
            </div>
+           
+           {/* Auto-generated Flashcards Badge */}
+           {isInteractive && (
+             <div className="flex items-center justify-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-bold animate-pulse">
+               <Brain className="w-5 h-5" />
+               Material de Revisão Espaçada (Flashcards) Gerado Automaticamente!
+             </div>
+           )}
         </div>
 
         {/* Detailed Skill Evolution */}
@@ -352,10 +361,10 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                  const topicScore = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
                  
                  let feedbackText = "";
-                 if (delta > 5) feedbackText = "Excelente progresso! Você absorveu bem os conceitos.";
-                 else if (delta > 0) feedbackText = "Progresso constante. Continue praticando para fixar.";
-                 else if (topicScore < 50) feedbackText = "Revisão recomendada. Conceitos fundamentais precisam de atenção.";
-                 else feedbackText = "Desempenho estável. Tente desafios mais difíceis.";
+                 if (delta > 5) feedbackText = "Excelente salto qualitativo! Absorção rápida dos conceitos.";
+                 else if (delta > 0) feedbackText = "Crescimento consistente. Continue revisando para fixar.";
+                 else if (topicScore < 50) feedbackText = "Detectamos dificuldades. Flashcards extras foram gerados.";
+                 else feedbackText = "Desempenho estável. Pronto para desafios maiores.";
 
                  return (
                    <div key={topic.id} className="p-6 hover:bg-slate-50 transition-colors">
@@ -373,7 +382,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                          
                          <div className="w-full md:w-64">
                             <div className="flex justify-between text-xs font-bold mb-2">
-                               <span className="text-slate-400">Evolução</span>
+                               <span className="text-slate-400">Proficiência</span>
                                <span className={`${delta > 0 ? 'text-green-600' : 'text-slate-500'}`}>
                                   {startP}% &rarr; {endP}% ({delta > 0 ? '+' : ''}{delta}%)
                                </span>
@@ -393,7 +402,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
         </div>
 
         <button onClick={handleExit} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-colors shadow-xl flex items-center justify-center gap-2">
-           Salvar Progresso e Voltar <ArrowRight className="w-5 h-5" />
+           {isInteractive ? 'Salvar Relatório e Material' : 'Voltar ao Hub'} <ArrowRight className="w-5 h-5" />
         </button>
       </div>
     );

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { getSmartQuestion, saveQuestionToLibrary } from '../services/questionDatabase';
 import { getDifficultyForMastery } from '../services/tracingService';
-import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 import { useAuth } from '../contexts/AuthContext';
@@ -204,18 +204,26 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 animate-pulse">
                   <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
                   <p>Consultando banco de questões...</p>
-                  <p className="text-xs text-gray-300 mt-2">Se necessário, a IA gerará um exercício inédito.</p>
+                  <p className="text-xs text-gray-300 mt-2">Buscando questões reais no sistema.</p>
                 </div>
               ) : question ? (
                 <div className="animate-in fade-in duration-500">
                    
                    {/* Banca Identifier for Concursos */}
-                   {question.banca && (
-                     <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
-                        <Building2 className="w-3.5 h-3.5" />
-                        Banca: {question.banca}
-                     </div>
-                   )}
+                   <div className="flex gap-2 mb-6">
+                     {question.banca && (
+                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 text-xs font-bold uppercase tracking-tight">
+                          <Building2 className="w-3.5 h-3.5" />
+                          Banca: {question.banca}
+                       </div>
+                     )}
+                     {question.source && (
+                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-xs font-bold uppercase tracking-tight">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {question.source}
+                       </div>
+                     )}
+                   </div>
 
                    {question.visualization && (
                       <div className="mb-6">
@@ -311,7 +319,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
 
                         {showFullExplanation && (
                           <div className="pt-4 border-t border-black/5 mt-4">
-                            <h4 className="text-xs font-bold uppercase text-gray-500 mb-2">Resolução Passo a Passo</h4>
+                            <h4 className="text-xs font-bold uppercase text-gray-500 mb-2">Comentário da Questão</h4>
                             <div className="bg-white/50 p-4 rounded-lg text-sm text-gray-800 leading-relaxed">
                                <MathRenderer text={question.explanation} />
                             </div>
@@ -320,7 +328,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
 
                         <div className="flex gap-4 mt-6">
                            <button onClick={pickSubSkill} className="flex-1 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
-                             Próximo Desafio &rarr;
+                             Próxima Questão &rarr;
                            </button>
                            
                            {/* Botão de Curadoria: Salvar no Banco Público */}
@@ -394,7 +402,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                    </div>
                 </div>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                   O sistema seleciona questões do banco ou gera novas com base na sua proficiência.
+                   O sistema seleciona questões do banco com base na sua proficiência.
                 </p>
              </div>
           </div>
