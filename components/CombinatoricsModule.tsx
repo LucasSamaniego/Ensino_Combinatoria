@@ -62,6 +62,17 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   
   const [customSimulationTopics, setCustomSimulationTopics] = useState<{ id: TopicId; name: string }[] | null>(null);
 
+  // Limpeza de segurança ao trocar de categoria/subcategoria
+  useEffect(() => {
+    setActiveTopic(null);
+    setActiveSimulation(null);
+    setCustomSimulationTopics(null);
+    // Se o user tinha um view de 'practice' ativo, forçamos volta ao dashboard para evitar erro
+    if (view === 'practice' || view === 'simulation_session') {
+      setView('dashboard');
+    }
+  }, [category, subCategory]);
+
   const getCurrentTopics = () => {
     if (category === 'math') {
       if (subCategory === 'basic') return BASIC_MATH_TOPICS;

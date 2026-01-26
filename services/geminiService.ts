@@ -41,6 +41,7 @@ export const generateProblem = async (
 
   if (category === 'math') {
     // --- Lógica para Matemática (Pode gerar ou buscar) ---
+    // FIREWALL: Bloqueia qualquer conteúdo de leis/concursos
     if (isBasicMath) {
       persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
       constraints = `
@@ -50,12 +51,14 @@ export const generateProblem = async (
         3. **Contexto**: Use exemplos do cotidiano (dinheiro, objetos, situações reais).
         4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro.
         5. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia.
+        6. **FIREWALL**: PROIBIDO gerar questões sobre Direito, Leis, Artigos da Constituição ou contexto de Concurso Público (Juiz, Policial, etc). Mantenha o contexto escolar/cotidiano.
       `;
     } else {
       persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
       constraints = `
         - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
         - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
+        - **FIREWALL**: PROIBIDO gerar questões sobre Leis, Crimes ou Administração Pública. Foque puramente na Matemática Discreta acadêmica.
       `;
     }
     
@@ -67,6 +70,7 @@ export const generateProblem = async (
 
   } else {
     // --- Lógica para Concursos (QBANK MODE - APENAS QUESTÕES REAIS) ---
+    // FIREWALL: Bloqueia matemática escolar pura
     
     persona = "Você é um Banco de Dados de Questões de Concursos Públicos (Archive Mode).";
     
@@ -83,8 +87,9 @@ export const generateProblem = async (
       - O campo "source" TEM QUE CONTER O ÓRGÃO E O ANO (ex: "Polícia Federal 2021", "TJ-SP 2023", "Auditor RFB 2014").
       - O texto deve ser a reprodução fiel do enunciado original (ou o mais próximo possível).
       
-      ESTILO:
-      - Se for Raciocínio Lógico: Foco em estruturas lógicas, "se então", tabelas-verdade, exatamente como cobrado.
+      ESTILO E FIREWALL:
+      - Se for Raciocínio Lógico (RLM): Foque em estruturas lógicas, "se então", tabelas-verdade, exatamente como cobrado em bancas. 
+      - PROIBIDO: Não gere questões de matemática escolar genérica (ex: "João tem 3 maçãs"). Tem que ser estilo de prova (ex: "Considere a proposição P...").
       - Se for Direito: Foco na letra da lei ou jurisprudência cobrada na época.
     `;
 
@@ -214,6 +219,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       - 1 de Direito Penal.
       - 1 de Raciocínio Lógico (Lógica Proposicional).
       OBRIGATÓRIO: Cite a Banca e o Ano/Órgão em cada questão.
+      PROIBIDO: Não inclua matemática escolar básica (frações, geometria plana simples) que não seja de concurso.
     `;
   }
 
@@ -296,6 +302,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
       NÃO invente questões. Reproduza questões que realmente caíram.
       Preencha 'banca' e 'source' (Órgão/Ano) obrigatoriamente.
+      FIREWALL: Não inclua questões de vestibulares (ENEM/FUVEST) a menos que explicitamente solicitado. Foque em CARREIRAS PÚBLICAS.
     `;
   } else if (style === 'Military') {
     styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica. Cite o ano da prova.";
@@ -478,9 +485,9 @@ export const generateStudyPath = async (
 
   let personaInstruction = "";
   if (category === 'math') {
-    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas. PROIBIDO incluir Direito/Leis.";
+    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas. PROIBIDO incluir Direito/Leis ou tópicos de Concurso Público (exceto se for Matemática pura).";
   } else if (category === 'concursos') {
-    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque no Edital: Leis, Jurisprudência e Raciocínio Lógico de Bancas.";
+    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque estritamente no Edital: Leis, Jurisprudência e Raciocínio Lógico Matemático (RLM) de Bancas. PROIBIDO incluir tópicos de matemática escolar básica que não caem em concurso.";
   } else {
     personaInstruction = "Você é um Coordenador Pedagógico Geral.";
   }
