@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { StudyPlan, UserProgress, SkillState } from '../types';
 import { generateStudyPath, calculateStudyEffort } from '../services/geminiService';
@@ -258,167 +257,173 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
       {/* Deadline (Common for both) */}
       {(specificGoal || category === 'concursos') && (
-        <div className="space-y-2 animate-in slide-in-from-top-4">
+        <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" /> Data da Prova / Meta
           </label>
-          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" required />
+          <input 
+             type="date" 
+             value={deadline} 
+             onChange={e => setDeadline(e.target.value)} 
+             className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+             min={new Date().toISOString().split('T')[0]}
+             required
+          />
+
+          <label className="text-sm font-bold text-slate-700 flex items-center gap-2 mt-4">
+            <Clock className="w-4 h-4 text-slate-400" /> Tempo Disponível por Dia (Minutos)
+          </label>
+          <div className="flex items-center gap-4">
+            <input 
+              type="range" 
+              min="15" 
+              max="240" 
+              step="15" 
+              value={userDailyMinutes} 
+              onChange={(e) => setUserDailyMinutes(parseInt(e.target.value))}
+              className="flex-grow h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+            />
+            <span className="font-mono font-bold text-indigo-600 w-16 text-right">{userDailyMinutes} min</span>
+          </div>
         </div>
       )}
 
-      <button 
-        type="submit" 
-        disabled={category === 'math' ? (!objectiveType || !specificGoal || !deadline) : (!deadline)} 
-        className="w-full bg-slate-900 hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-300 mt-4 text-lg"
-      >
-        Próximo: Selecionar Conteúdo <ArrowRight className="w-5 h-5" />
-      </button>
+      <div className="pt-4 flex justify-end">
+        <button 
+          type="submit" 
+          disabled={!deadline || (!specificGoal && category === 'math')}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg"
+        >
+          Próximo <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </form>
   );
 
-  // 2. Topic Selection Step
   const renderTopicsStep = () => (
-    <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
-      <div className="text-center mb-4">
-         <h3 className="text-xl font-bold text-slate-900">O que você precisa estudar?</h3>
-         <p className="text-slate-500 text-sm">Selecione os tópicos do módulo de {category === 'math' ? 'Matemática' : 'Concursos'} que cairão na sua prova ou que são de seu interesse.</p>
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-8">
+      <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+        <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <Layers className="w-5 h-5 text-indigo-500" /> Seleção de Tópicos
+        </h3>
+        <p className="text-sm text-slate-500 mb-6">
+          Personalize seu escopo. O algoritmo vai distribuir apenas o que estiver marcado.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+          {availableTopics.map(topic => {
+            const isSelected = selectedTopics.includes(topic.name);
+            return (
+              <div 
+                key={topic.id}
+                onClick={() => toggleTopic(topic.name)}
+                className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+              >
+                <span className={`text-sm font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-600'}`}>{topic.name}</span>
+                <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="flex justify-end mb-2">
-         <button 
-           type="button" 
-           onClick={() => setSelectedTopics(selectedTopics.length === availableTopics.length ? [] : availableTopics.map(t => t.name))}
-           className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
-         >
-           {selectedTopics.length === availableTopics.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
-         </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50">
-        {availableTopics.map(topic => {
-           const isSelected = selectedTopics.includes(topic.name);
-           return (
-             <button
-               key={topic.id}
-               onClick={() => toggleTopic(topic.name)}
-               className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                 isSelected 
-                   ? 'bg-white border-indigo-500 shadow-sm ring-1 ring-indigo-200' 
-                   : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-               }`}
-             >
-               <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
-                 {isSelected && <Check className="w-3 h-3 text-white" />}
-               </div>
-               <span className={`text-sm font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-600'}`}>
-                 {topic.name}
-               </span>
-             </button>
-           );
-        })}
-      </div>
-
-      <div className="flex gap-4 pt-4">
-        <button onClick={() => setStep('config')} className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50">
-           Voltar
-        </button>
+      <div className="flex justify-between pt-4">
+        <button onClick={() => setStep('config')} className="text-slate-500 hover:text-slate-800 font-bold px-4">Voltar</button>
         <button 
-           onClick={handleTopicsSubmit} 
-           disabled={loadingAnalysis || selectedTopics.length === 0}
-           className="flex-[2] bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+          onClick={handleTopicsSubmit}
+          disabled={selectedTopics.length === 0}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg"
         >
-          {loadingAnalysis ? <Loader2 className="animate-spin" /> : <>Analisar Disponibilidade <ArrowRight className="w-4 h-4" /></>}
+          {loadingAnalysis ? <Loader2 className="animate-spin w-5 h-5" /> : <>Analisar & Gerar <Zap className="w-4 h-4" /></>}
         </button>
       </div>
     </div>
   );
 
-  // 3. Strategy Step
-  const renderStrategyStep = () => {
-    const weeklyUser = Math.round((userDailyMinutes * 7) / 60);
-    const weeklyRec = Math.round((recommendedMinutes * 7) / 60);
-    
-    return (
-      <div className="space-y-8 animate-in slide-in-from-right-8 duration-500">
-        <div className="text-center">
-           <h3 className="text-2xl font-bold text-slate-900 mb-2">Selecione sua Estratégia</h3>
-           <p className="text-slate-500 text-sm">Baseado nos {selectedTopics.length} tópicos selecionados e no prazo até {new Date(deadline).toLocaleDateString()}.</p>
+  const renderStrategyStep = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-right-8">
+      <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-2xl text-white shadow-xl">
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 bg-white/10 rounded-xl">
+            <Target className="w-8 h-8 text-emerald-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold">Estratégia Recomendada</h3>
+            <p className="text-indigo-200 text-sm mt-1">{recommendationReason}</p>
+          </div>
         </div>
 
-        {/* User Availability Slider (Now here for adjustment) */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <label className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
-              <Clock className="w-4 h-4 text-slate-400" /> Ajuste sua Disponibilidade Diária:
-            </label>
-            <div className="flex items-center gap-4">
-              <input 
-                type="range" 
-                min={15} 
-                max={300} 
-                step={15} 
-                value={userDailyMinutes} 
-                onChange={e => setUserDailyMinutes(parseInt(e.target.value))} 
-                className="flex-grow accent-slate-900" 
-              />
-              <span className="bg-white border border-slate-200 text-slate-900 font-bold px-3 py-1 rounded-lg text-sm min-w-[4rem] text-center">
-                {userDailyMinutes} min
-              </span>
-            </div>
+        <div className="grid grid-cols-2 gap-8 mt-8 border-t border-white/10 pt-8">
+           <div>
+              <div className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-1">Seu Tempo</div>
+              <div className="text-3xl font-black">{userDailyMinutes} <span className="text-sm font-medium text-slate-400">min/dia</span></div>
+           </div>
+           <div>
+              <div className="text-xs font-bold text-emerald-300 uppercase tracking-widest mb-1">Ideal (IA)</div>
+              <div className="text-3xl font-black text-emerald-400">{recommendedMinutes} <span className="text-sm font-medium text-emerald-200/60">min/dia</span></div>
+           </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Opção Recomendada (IA) */}
-          <button onClick={() => handleFinalize(recommendedMinutes)} className="group relative p-6 rounded-2xl border-2 border-indigo-500 bg-indigo-50 hover:bg-indigo-100 transition-all text-left flex flex-col h-full shadow-lg shadow-indigo-100 ring-2 ring-indigo-200 ring-offset-2">
-             <div className="absolute -top-3 -right-3 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">RECOMENDADO</div>
-             <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-indigo-200 text-indigo-700 rounded-xl flex items-center justify-center"><Zap className="w-6 h-6" /></div>
-                <div><h4 className="font-bold text-indigo-900 text-lg">Ritmo Ideal</h4><span className="text-xs text-indigo-600 font-bold uppercase tracking-wider">Otimizado por IA</span></div>
-             </div>
-             <div className="space-y-3 mb-6 flex-grow">
-               <div className="flex items-end gap-2"><span className="text-4xl font-black text-slate-900">{recommendedMinutes}</span><span className="text-sm font-bold text-slate-500 mb-1">min/dia</span></div>
-               <div className="text-xs font-bold text-slate-400 bg-white/50 px-2 py-1 rounded w-fit">~{weeklyRec} horas por semana</div>
-               <p className="text-sm text-slate-600 mt-4 leading-relaxed bg-white p-3 rounded-lg border border-indigo-100">{recommendationReason}</p>
-             </div>
-             <div className="mt-auto w-full py-2 text-center text-sm font-bold text-indigo-700 bg-white rounded-lg border border-indigo-200 group-hover:bg-indigo-600 group-hover:text-white transition-colors">Seguir Recomendação</div>
-          </button>
-
-          {/* Opção do Usuário */}
-          <button onClick={() => handleFinalize(userDailyMinutes)} className="group relative p-6 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-400 transition-all text-left flex flex-col h-full hover:shadow-lg">
-             <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center"><Clock className="w-6 h-6" /></div>
-                <div><h4 className="font-bold text-slate-900 text-lg">Sua Preferência</h4><span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Definido por você</span></div>
-             </div>
-             <div className="space-y-3 mb-6 flex-grow">
-               <div className="flex items-end gap-2"><span className="text-4xl font-black text-slate-900">{userDailyMinutes}</span><span className="text-sm font-bold text-slate-500 mb-1">min/dia</span></div>
-               <div className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded w-fit">~{weeklyUser} horas por semana</div>
-               {userDailyMinutes < recommendedMinutes && <div className="flex gap-2 items-start mt-4 bg-amber-50 p-3 rounded-lg border border-amber-100 text-xs text-amber-800"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><p>Atenção: Tempo pode ser curto para cobrir todos os {selectedTopics.length} tópicos selecionados.</p></div>}
-             </div>
-             <div className="mt-auto w-full py-2 text-center text-sm font-bold text-slate-600 bg-slate-50 rounded-lg border border-slate-200 group-hover:bg-slate-800 group-hover:text-white transition-colors">Seguir Meu Tempo</div>
-          </button>
-        </div>
-        
-        <button onClick={() => setStep('topics')} className="mx-auto block text-sm text-slate-400 hover:text-slate-600 underline">Voltar para Tópicos</button>
       </div>
-    );
-  };
+
+      <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
+         <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+         <div className="text-sm text-amber-800">
+           <span className="font-bold">Nota Pedagógica:</span> Se o tempo ideal for muito maior que o seu disponível, o plano focará nos tópicos de maior peso ou reduzirá a profundidade.
+         </div>
+      </div>
+
+      <div className="flex justify-between pt-4">
+        <button onClick={() => setStep('topics')} className="text-slate-500 hover:text-slate-800 font-bold px-4">Voltar</button>
+        <button 
+          onClick={() => handleFinalize(userDailyMinutes)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg hover:shadow-emerald-200/50 transition-all transform hover:-translate-y-1"
+        >
+          Confirmar e Gerar Plano <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderGeneratingStep = () => (
+    <div className="py-20 flex flex-col items-center justify-center text-center animate-in zoom-in duration-500">
+      <div className="relative mb-8">
+        <div className="w-24 h-24 border-4 border-indigo-100 rounded-full animate-ping absolute top-0 left-0"></div>
+        <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center shadow-2xl relative z-10">
+           <Loader2 className="w-10 h-10 text-white animate-spin" />
+        </div>
+      </div>
+      <h3 className="text-2xl font-bold text-slate-900 mb-2">Construindo sua Jornada</h3>
+      <p className="text-slate-500 max-w-sm mx-auto">
+        A Inteligência Artificial está analisando {selectedTopics.length} tópicos, suas lacunas de aprendizado e o prazo disponível para criar a rota otimizada.
+      </p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8 md:p-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl mb-4 shadow-sm"><Target className="w-8 h-8" /></div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">{step === 'generating' ? 'Criando sua Rota...' : 'Configure sua Bússola'}</h2>
-          {step === 'generating' ? (
-             <div className="flex flex-col items-center mt-6"><Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" /><p className="text-slate-500">A IA está estruturando suas semanas de estudo.</p></div>
-          ) : (
-            <p className="text-slate-500 mt-2 max-w-lg mx-auto">Vamos criar um plano adaptativo considerando seu nível atual e os tópicos que você deseja dominar.</p>
-          )}
+    <div className="max-w-3xl mx-auto bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-slate-100 my-8">
+      {step !== 'generating' && (
+        <div className="mb-10">
+          <div className="flex justify-between items-center mb-6">
+             <h2 className="text-2xl font-black text-slate-900">{category === 'math' ? 'Plano de Estudos Personalizado' : 'Planejamento de Edital'}</h2>
+             <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-wider">
+               Fase {step === 'config' ? '1' : step === 'topics' ? '2' : '3'} de 3
+             </span>
+          </div>
+          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+             <div 
+               className="bg-indigo-600 h-full transition-all duration-500 ease-out" 
+               style={{ width: step === 'config' ? '33%' : step === 'topics' ? '66%' : '100%' }}
+             ></div>
+          </div>
         </div>
+      )}
 
-        {step === 'config' && renderConfigStep()}
-        {step === 'topics' && renderTopicsStep()}
-        {step === 'strategy' && renderStrategyStep()}
-      </div>
+      {step === 'config' && renderConfigStep()}
+      {step === 'topics' && renderTopicsStep()}
+      {step === 'strategy' && renderStrategyStep()}
+      {step === 'generating' && renderGeneratingStep()}
     </div>
   );
 };

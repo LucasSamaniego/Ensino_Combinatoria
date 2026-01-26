@@ -18,6 +18,7 @@ interface PracticeSessionProps {
   onBack: () => void;
   onToggleFavorite: (question: Question) => void;
   isFavorite: (questionId: string) => boolean;
+  studyGoalContext?: string; // New Prop
 }
 
 const PracticeSession: React.FC<PracticeSessionProps> = ({ 
@@ -29,7 +30,8 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
   onCompleteQuestion,
   onBack,
   onToggleFavorite,
-  isFavorite
+  isFavorite,
+  studyGoalContext
 }) => {
   const { user } = useAuth();
   const [targetSubSkill, setTargetSubSkill] = useState<{id: string, name: string} | null>(null);
@@ -88,14 +90,15 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
     const currentMastery = userSkills[subSkill.id]?.masteryProbability || 0.1;
     const difficulty = getDifficultyForMastery(currentMastery);
 
-    // Usa o novo serviço híbrido (DB -> IA)
+    // Usa o novo serviço híbrido (DB -> IA) e passa o CONTEXTO (Bancas selecionadas)
     const newQuestion = await getSmartQuestion(
       category,
       topicName,
       topicId,
       subSkill.id,
       subSkill.name,
-      difficulty
+      difficulty,
+      studyGoalContext // Passando o contexto do plano de estudos
     );
     
     setQuestion(newQuestion);

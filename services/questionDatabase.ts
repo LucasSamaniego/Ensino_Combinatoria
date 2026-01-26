@@ -1,3 +1,4 @@
+
 import { Question, Difficulty, TopicId } from "../types";
 import { generateProblem } from "./geminiService";
 import { api } from "./api";
@@ -12,7 +13,8 @@ export const getSmartQuestion = async (
   topicId: TopicId,
   subSkillId: string,
   subSkillName: string,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  contextInfo?: string // Novo parâmetro
 ): Promise<Question> => {
   
   // 1. Tentar buscar da API (Backend -> MySQL)
@@ -32,9 +34,9 @@ export const getSmartQuestion = async (
     console.warn("Falha ao conectar com API de questões, usando fallback IA.");
   }
 
-  // 2. Fallback: Se não encontrar no banco, gera com IA
-  console.log("Questão não encontrada no MySQL. Gerando com IA...");
-  return await generateProblem(category, topicName, topicId, subSkillId, subSkillName, difficulty);
+  // 2. Fallback: Se não encontrar no banco, gera com IA (ou busca no "arquivo" da IA)
+  console.log("Questão não encontrada no MySQL. Buscando com IA (Mode: " + (category === 'concursos' ? 'Archive' : 'Gen') + ")...");
+  return await generateProblem(category, topicName, topicId, subSkillId, subSkillName, difficulty, contextInfo);
 };
 
 /**

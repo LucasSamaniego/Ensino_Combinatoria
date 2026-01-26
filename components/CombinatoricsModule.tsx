@@ -348,6 +348,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const dueCards = getCardsDue(progress.flashcards);
   const getCurrentTopicData = () => currentTopics.find(t => t.id === activeTopic);
 
+  // Extract study plan goal to pass as context for question generation
+  const studyGoalContext = progress.studyPlan && progress.studyPlan.category === category ? progress.studyPlan.goal : undefined;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-20">
@@ -491,6 +494,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
             onBack={() => setView('dashboard')}
             onToggleFavorite={handleToggleFavorite}
             isFavorite={isFavorite}
+            studyGoalContext={studyGoalContext} // PASSING CONTEXT HERE
           />
         )}
         {view === 'simulations' && <SimulationHub onSelect={handleSimulationStart} />}

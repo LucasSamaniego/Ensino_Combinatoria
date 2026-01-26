@@ -28,7 +28,8 @@ export const generateProblem = async (
   topicId: TopicId,
   subSkillId: string,
   subSkillName: string,
-  currentDifficulty: string
+  currentDifficulty: string,
+  contextInfo?: string // Novo parâmetro para passar as bancas selecionadas
 ): Promise<Question> => {
   
   let persona = "";
@@ -37,11 +38,9 @@ export const generateProblem = async (
   
   // Verificação se é Matemática Básica (Módulos 0-7)
   const isBasicMath = topicId.startsWith('math_basics_');
-  const isLogic = topicId === TopicId.RACIOCINIO_LOGICO;
 
   if (category === 'math') {
     // --- Lógica para Matemática (Pode gerar ou buscar) ---
-    // FIREWALL: Bloqueia qualquer conteúdo de leis/concursos
     if (isBasicMath) {
       persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
       constraints = `
@@ -51,7 +50,7 @@ export const generateProblem = async (
         3. **Contexto**: Use exemplos do cotidiano (dinheiro, objetos, situações reais).
         4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro.
         5. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia.
-        6. **FIREWALL**: PROIBIDO gerar questões sobre Direito, Leis, Artigos da Constituição ou contexto de Concurso Público (Juiz, Policial, etc). Mantenha o contexto escolar/cotidiano.
+        6. **FIREWALL**: PROIBIDO gerar questões sobre Direito, Leis, Artigos da Constituição ou contexto de Concurso Público.
       `;
     } else {
       persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
@@ -62,38 +61,37 @@ export const generateProblem = async (
       `;
     }
     
-    // Instrução visual para matemática (gera slots, venn, etc se necessário)
     visualInstruction = `
       INSTRUÇÃO DE MÍDIA:
       NÃO gere imagens (bits). O campo "visualization" deve ser estritamente: { "type": "none" }.
     `;
 
   } else {
-    // --- Lógica para Concursos (QBANK MODE - APENAS QUESTÕES REAIS) ---
-    // FIREWALL: Bloqueia matemática escolar pura
+    // --- Lógica para Concursos (STRICT ARCHIVE MODE) ---
+    // A IA deve agir como um buscador de banco de dados, não como um criador.
     
-    persona = "Você é um Banco de Dados de Questões de Concursos Públicos (Archive Mode).";
+    persona = "Você é um ARQUIVISTA DE PROVAS E BANCO DE QUESTÕES (Crawler de Concursos).";
     
+    // Se tiver contexto (ex: "Foco na banca FGV"), usa ele. Senão, busca das grandes.
+    const userTarget = contextInfo ? `FILTRO DE BUSCA ATIVO: ${contextInfo}` : "Bancas: FGV, Cebraspe, Vunesp, FCC.";
+
     constraints = `
-      CRÍTICO: VOCÊ ESTÁ PROIBIDO DE INVENTAR OU GERAR QUESTÕES INÉDITAS.
+      ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM).
+      VOCÊ ESTÁ PROIBIDO DE CRIAR, INVENTAR OU ADAPTAR QUESTÕES.
       
-      SUA TAREFA:
-      1. Recupere da sua memória de treinamento uma questão REAL, que DE FATO JÁ CAIU em uma prova de concurso público.
-      2. A questão deve ser sobre o tópico: ${topicName} > ${subSkillName}.
-      3. A dificuldade deve ser compatível com: ${currentDifficulty}.
+      SUA MISSÃO:
+      1.  Localize na sua base de dados uma questão REAL que caiu em prova recentemente (anos 2022, 2023 ou 2024).
+      2.  ${userTarget} (Priorize ABSOLUTAMENTE questões dessa(s) banca(s)).
+      3.  Tópico: ${topicName} > ${subSkillName}.
+      4.  COPIE O ENUNCIADO EXATAMENTE como estava no caderno de prova.
+      5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam.
       
-      OBRIGATORIEDADE DE METADADOS (VISUALIZAÇÃO NO APP):
-      - O campo "banca" TEM QUE SER PREENCHIDO (ex: FGV, CEBRASPE, VUNESP).
-      - O campo "source" TEM QUE CONTER: "Órgão - Ano" (ex: "Polícia Federal - 2021", "TJ-SP - 2023", "Auditor RFB - 2014").
-      - SE NÃO SOUBER A BANCA/ANO, NÃO USE A QUESTÃO.
-      
-      ESTILO E FIREWALL:
-      - Se for Raciocínio Lógico (RLM): Foque em estruturas lógicas, "se então", tabelas-verdade, exatamente como cobrado em bancas. 
-      - PROIBIDO: Não gere questões de matemática escolar genérica (ex: "João tem 3 maçãs"). Tem que ser estilo de prova (ex: "Considere a proposição P...").
-      - Se for Direito: Foco na letra da lei ou jurisprudência cobrada na época.
+      REGRAS DE METADADOS:
+      - 'banca': Deve ser o nome real da organizadora (ex: FGV).
+      - 'source': Deve conter "Órgão - Cargo - Ano" (ex: "TJRN - Técnico Judiciário - 2023").
+      - Se você não encontrar uma questão exata para este tópico e banca, procure de uma banca similar, mas DEIXE CLARO a origem.
     `;
 
-    // Para concursos, nunca tentamos gerar visualização via IA, confiamos no texto
     visualInstruction = `
       O campo "visualization" deve ser sempre: { "type": "none" }.
     `;
@@ -107,7 +105,7 @@ export const generateProblem = async (
     ${persona}
     
     Tópico Solicitado: ${topicName} > ${subSkillName}.
-    Nível: ${currentDifficulty}.
+    Nível de Dificuldade da Prova: ${currentDifficulty}.
     
     ${constraints}
     ${visualInstruction}
@@ -115,14 +113,14 @@ export const generateProblem = async (
 
     Retorne APENAS o JSON no esquema:
     {
-      "text": "Enunciado da questão (exatamente como caiu na prova)...",
+      "text": "Enunciado da questão (COPIADO DA PROVA)...",
       "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
       "correctAnswer": "Texto da alternativa correta",
-      "explanation": "Gabarito comentado detalhado, citando a lei ou a lógica...",
-      "hints": ["Dica sobre a banca", "Dica teórica"],
-      "miniTheory": "Resumo do conceito cobrado...",
-      "banca": "NOME DA BANCA (ex: FGV)",
-      "source": "ÓRGÃO - ANO (ex: TJ-RJ - 2022)",
+      "explanation": "Gabarito comentado citando a lei, jurisprudência ou lógica da banca...",
+      "hints": ["Dica sobre o estilo da banca", "Dica teórica"],
+      "miniTheory": "Resumo do conceito (ex: Artigo da lei cobrado)...",
+      "banca": "NOME DA BANCA",
+      "source": "Órgão - Ano",
       "visualization": { "type": "none" }
     }
   `;
@@ -160,7 +158,6 @@ export const generateProblem = async (
 
     const data = JSON.parse(response.text || '{}');
     
-    // Força type 'none' caso a IA alucine
     const safeViz = data.visualization && data.visualization.type === 'none' 
       ? data.visualization 
       : { type: 'none' };
@@ -178,8 +175,8 @@ export const generateProblem = async (
       visualization: safeViz,
       hints: data.hints || [],
       miniTheory: data.miniTheory,
-      banca: data.banca || "Banca Desconhecida",
-      source: data.source || "Concurso Público"
+      banca: data.banca || "Questão de Concurso",
+      source: data.source || "Arquivo Público"
     };
   } catch (error) {
     console.error("Gemini Error:", error);
@@ -189,10 +186,10 @@ export const generateProblem = async (
       subSkillId,
       subSkillName,
       difficulty: Difficulty.BASIC,
-      text: "Erro ao conectar com a IA. Verifique a chave de API.",
+      text: "Erro ao buscar questão no arquivo. Tente novamente.",
       options: ["-", "-", "-", "-"],
       correctAnswer: "-",
-      explanation: "Verifique se a variável de ambiente API_KEY está configurada corretamente.",
+      explanation: "Verifique a conexão.",
       banca: "Sistema"
     };
   }
@@ -211,15 +208,15 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
     }
   } else {
-    persona = "Banco de Questões de Concursos (Bibliotecário).";
+    persona = "ARQUIVISTA DE CONCURSOS (Archive Mode).";
     contentFilter = `
-      RECUPERE 4 questões REAIS de concursos públicos anteriores.
-      - 1 de Direito Administrativo (Banca FGV ou CEBRASPE).
-      - 1 de Direito Constitucional (Banca FCC ou VUNESP).
-      - 1 de Direito Penal.
-      - 1 de Raciocínio Lógico (Lógica Proposicional).
-      OBRIGATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (ex: TJ-SP 2021) em cada questão.
-      PROIBIDO: Não inclua matemática escolar básica (frações, geometria plana simples) que não seja de concurso.
+      RECUPERE 4 questões REAIS (CÓPIA FIEL) de concursos públicos recentes (2023-2024).
+      - 1 de Direito Administrativo (Banca FGV).
+      - 1 de Direito Constitucional (Banca Cebraspe).
+      - 1 de Direito Penal (Banca Vunesp).
+      - 1 de Raciocínio Lógico (Banca FCC).
+      OBRIGATÓRIO: Preencha 'banca' e 'source' (ex: TJ-SP 2023).
+      PROIBIDO: Não inclua matemática escolar básica que não seja de concurso.
     `;
   }
 
@@ -283,7 +280,6 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
 export const generateSimulationQuestions = async (config: SimulationConfig, contextTopics?: string[]): Promise<Question[]> => {
   const { style, questionCount, difficulty } = config;
   
-  // Constroi string de restrição de tópicos
   const topicRestriction = contextTopics && contextTopics.length > 0
     ? `RESTRIÇÃO DE CONTEÚDO: As questões DEVEM ser EXCLUSIVAMENTE sobre os seguintes tópicos: ${contextTopics.join(', ')}.`
     : '';
@@ -297,10 +293,10 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     `;
   } else if (style === 'Concurso') {
     styleInstruction = `
-      MODO ARQUIVO DE QUESTÕES:
-      Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores.
+      MODO ARQUIVO DE QUESTÕES (VERBATIM):
+      Recupere EXATAMENTE ${questionCount} questões REAIS de concursos públicos anteriores (2022-2024).
       Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
-      NÃO invente questões. Reproduza questões que realmente caíram.
+      NÃO invente questões. COPIE questões que realmente caíram.
       MANDATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (Órgão - Ano).
       FIREWALL: Não inclua questões de vestibulares (ENEM/FUVEST) a menos que explicitamente solicitado. Foque em CARREIRAS PÚBLICAS.
     `;
