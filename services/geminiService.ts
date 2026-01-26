@@ -36,6 +36,7 @@ export const generateProblem = async (
   
   // Verificação se é Matemática Básica (Módulos 0-7)
   const isBasicMath = topicId.startsWith('math_basics_');
+  const isLogic = topicId === TopicId.RACIOCINIO_LOGICO;
 
   if (category === 'math') {
     if (isBasicMath) {
@@ -65,13 +66,25 @@ export const generateProblem = async (
       `;
     }
   } else {
-    persona = "Você é um especialista em Concursos Públicos de alto nível (Juiz, Auditor, Delegado).";
-    constraints = `
-      - FOCO: Questões reais de bancas examinadoras (FGV, CESPE/Cebraspe, FCC, Vunesp).
-      - REGRAS: Você DEVE incluir o nome da banca no campo "banca".
-      - CONTEÚDO: Exclusivamente o tópico de Direito ou Raciocínio Lógico solicitado.
-      - ESTILO: Formal e técnico conforme a jurisprudência e doutrina dominante.
-    `;
+    // CATEGORIA CONCURSOS
+    if (isLogic) {
+      persona = "Você é um especialista em Raciocínio Lógico Matemático (RLM) para concursos públicos de alto nível.";
+      constraints = `
+        - DIFERENCIAÇÃO CRÍTICA: NÃO confunda com Análise Combinatória matemática pura.
+        - FOCO TEMÁTICO: Lógica Proposicional, Tabela-Verdade, Equivalências Lógicas (Contrapositiva, Morgan), Negação de Proposições, Silogismos, Diagramas Lógicos e Lógica de Argumentação.
+        - ESTILO DAS QUESTÕES: Use o padrão de bancas como CEBRASPE (Certo/Errado adaptado para múltipla escolha), FGV (textos longos e interpretação) e FCC (padrões de sequência).
+        - VISUALIZAÇÃO: Se envolver conjuntos ou silogismos, use type: 'venn'. Se envolver sequências, use type: 'slots'.
+        - TERMINOLOGIA: Use termos técnicos corretos: "Tautologia", "Contradição", "Contingência", "Bicondicional", "Conectivos".
+      `;
+    } else {
+      persona = "Você é um especialista em Concursos Públicos de alto nível (Juiz, Auditor, Delegado).";
+      constraints = `
+        - FOCO: Questões reais de bancas examinadoras (FGV, CESPE/Cebraspe, FCC, Vunesp).
+        - REGRAS: Você DEVE incluir o nome da banca no campo "banca".
+        - CONTEÚDO: Exclusivamente o tópico de Direito (${topicName}) solicitado.
+        - ESTILO: Formal e técnico conforme a jurisprudência e doutrina dominante.
+      `;
+    }
   }
 
   const modelName = (currentDifficulty === Difficulty.OLYMPIAD || currentDifficulty === Difficulty.ADVANCED) 
@@ -192,7 +205,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
     }
   } else {
     persona = "Especialista em Bancas de Concursos (FGV/CESPE).";
-    contentFilter = "Gere 4 questões de Direito (Adm, Const, Penal) e Raciocínio Lógico de provas reais.";
+    contentFilter = "Gere 4 questões variadas: 1 de Direito Administrativo, 1 de Direito Constitucional, 1 de Direito Penal e 1 de Raciocínio Lógico (Lógica Proposicional).";
   }
 
   const prompt = `
@@ -284,7 +297,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       - Enunciados interessantes e desafiadores, típicos de cultura de resolução de problemas.
     `;
   } else if (style === 'Concurso') {
-    styleInstruction = "Cite e emule o estilo de bancas como FGV, CESPE, Vunesp, Cesgranrio.";
+    styleInstruction = "Cite e emule o estilo de bancas como FGV, CESPE, Vunesp, Cesgranrio. Se o tópico for Raciocínio Lógico, foque em Lógica Proposicional e Argumentação.";
   } else if (style === 'Military') {
     styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica.";
   }
@@ -476,7 +489,7 @@ export const generateStudyPath = async (
     personaInstruction += " IMPORTANTE: Você está estritamente PROIBIDO de incluir tópicos de Direito, Leis ou Humanas. Foque APENAS em Matemática.";
   } else if (category === 'concursos') {
     personaInstruction = "Você é um Especialista em Concursos Públicos (Área Jurídica e Administrativa).";
-    personaInstruction += " IMPORTANTE: Foque APENAS em tópicos de Direito, Legislação e Lógica para concursos. Não inclua matemática pura de escola.";
+    personaInstruction += " IMPORTANTE: Foque APENAS em tópicos de Direito, Legislação e Lógica (RLM) para concursos. Não inclua matemática pura de escola, exceto se for RLM.";
   } else {
     personaInstruction = "Você é um Coordenador Pedagógico Geral.";
   }

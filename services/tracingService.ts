@@ -1,3 +1,4 @@
+
 import { BKTParams, Difficulty, SkillState, Interaction } from '../types';
 import { EXPECTED_TIME } from '../constants';
 
@@ -14,6 +15,10 @@ const calculateBKT = (
   params: BKTParams
 ): number => {
   let { p_transit, p_slip, p_guess } = params;
+
+  // Ajuste fino: Aumenta levemente o learning rate padrão se não for especificado, para dar sensação de progresso
+  // No código original, p_transit vem do caller, mas aqui podemos impor um mínimo para evitar estagnação
+  p_transit = Math.max(p_transit, 0.2); 
 
   const expected = EXPECTED_TIME[difficulty];
 

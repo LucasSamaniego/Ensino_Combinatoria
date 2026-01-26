@@ -54,23 +54,19 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  // Adicionado 'plan_setup_internal' ao estado de visualização
   const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement_intro' | 'placement' | 'plan_setup_internal' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
   
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
-  // Initialize with passed prop if available, otherwise empty
   const [progress, setProgress] = useState<UserProgress>(initialProgress || getEmptyProgress());
   
-  // Custom available topics list (used for Weekly Study)
   const [customSimulationTopics, setCustomSimulationTopics] = useState<{ id: TopicId; name: string }[] | null>(null);
 
-  // Determine which topics to show based on category and subCategory
   const getCurrentTopics = () => {
     if (category === 'math') {
       if (subCategory === 'basic') return BASIC_MATH_TOPICS;
       if (subCategory === 'combinatorics') return COMBINATORICS_TOPICS;
-      return MATH_TOPICS; // Fallback
+      return MATH_TOPICS; 
     }
     return CONCURSOS_TOPICS;
   };
@@ -83,21 +79,13 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   else if (subCategory === 'weekly') moduleTitle = 'Plano Semanal';
   else moduleTitle = category === 'math' ? 'Matemática' : 'Concursos';
 
-  // --- FILTER TOPICS BASED ON STUDY PLAN ---
-  // If a plan exists for this category, restrict visible topics to those in the plan.
   const getVisibleTopics = () => {
-    // Only restrict if we are in the main module view, not sub-modules like 'basic' which are fixed content
-    // Also, don't restrict if subCategory is 'weekly' because that view is handled separately
     if (subCategory === 'weekly' || subCategory === 'basic') return currentTopics;
 
-    // Check if there is a plan for this category
     if (progress.studyPlan && progress.studyPlan.category === category) {
       const planTopics = new Set(
         progress.studyPlan.generatedSchedule.flatMap(w => w.topicsToStudy)
       );
-      
-      // Filter currentTopics. We match by name because generatedSchedule stores strings
-      // Ideally we would map names to IDs, but fuzzy matching or direct inclusion is safer here.
       return currentTopics.filter(t => planTopics.has(t.name));
     }
 
@@ -106,13 +94,10 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 
   const visibleTopics = getVisibleTopics();
 
-  // Carregamento Assíncrono do Progresso
   useEffect(() => {
     let isMounted = true;
 
     const initProgress = async () => {
-      // If we already have initialProgress from props, use it and don't re-fetch
-      // This prevents overwriting the new plan created in the parent component
       if (initialProgress) {
          if (isMounted) {
             setProgress(initialProgress);
@@ -138,45 +123,36 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     return () => { isMounted = false; };
   }, [user, category, subCategory, initialProgress]);
 
-  // Centralized View Routing Logic
   const handleViewRouting = (data: UserProgress) => {
-    // 1. If user hasn't done placement/setup, go to Intro Selection
     if (!data.hasCompletedPlacement) {
       setView('placement_intro');
       return;
     }
 
-    // 2. Se já completou nivelamento MAS não tem plano para esta categoria, força setup
-    // Nota: Verificamos se o plano existente bate com a categoria atual
     const hasPlanForCategory = data.studyPlan && data.studyPlan.category === category;
     if (data.hasCompletedPlacement && !hasPlanForCategory) {
        setView('plan_setup_internal');
        return;
     }
 
-    // 3. If specifically in Weekly Mode
     if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
       startWeeklySession();
       return;
     }
 
-    // 4. Default Dashboard
     setView('dashboard');
   };
 
-  // Função para iniciar a sessão semanal automaticamente
   const startWeeklySession = () => {
-     // Cria uma configuração de simulado temporária
      const weeklyConfig: SimulationConfig = {
        id: 'weekly_auto',
        title: weeklyTheme || 'Meta da Semana',
        description: 'Ciclo de aprendizagem adaptativa focado nos tópicos da semana.',
-       style: 'School', // Pode ser adaptativo no futuro
-       questionCount: 5, // Será ignorado pelo modo adaptativo que usa ciclos
+       style: 'School', 
+       questionCount: 5, 
        difficulty: Difficulty.INTERMEDIATE 
      };
      
-     // Converte as strings de tópicos em objetos para o SimulationSession
      const topicsObjects = (weeklyTopics || []).map((tName, i) => {
         const found = currentTopics.find(ct => ct.name === tName);
         return {
@@ -190,29 +166,22 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
      setView('simulation_session');
   };
 
-  // Salvamento Automático (Debounced ou no efeito do progress)
   useEffect(() => {
     if (user && !loading) {
-      // Salva sem bloquear a UI
       saveUserProgress(user.uid, progress).catch(console.error);
     }
   }, [progress, user, loading]);
 
-  // Option 1: Start from Scratch -> GO TO PLAN SETUP
   const handleStartFromZero = () => {
-    // Define que completou o nivelamento (mesmo que pulando), mas mantém skills básicas
     const newProgress = { ...progress, hasCompletedPlacement: true };
     setProgress(newProgress);
-    // Não salva globalmente ainda para evitar flash de conteúdo sem plano
     setView('plan_setup_internal'); 
   };
 
-  // Option 2: Placement Test Completion -> GO TO PLAN SETUP
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
     const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
 
-    // Cria o novo objeto de progresso explicitamente
     const newSkills = { ...progress.skills };
       
     currentTopics.forEach(topic => {
@@ -232,21 +201,14 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
       history: [...progress.history, ...results]
     };
 
-    // Atualiza estado local e vai para criação do plano
     setProgress(newProgress);
     setView('plan_setup_internal');
   };
 
-  // FINAL STEP: Plan Created -> GO TO DASHBOARD
   const handlePlanCreatedInternal = async (plan: StudyPlan) => {
     const updatedProgress = { ...progress, studyPlan: plan };
     setProgress(updatedProgress);
-    
-    // Agora sim, sincronizamos tudo com o backend e App.tsx
-    if (onUpdateProgress) {
-      onUpdateProgress(updatedProgress);
-    }
-    
+    if (onUpdateProgress) onUpdateProgress(updatedProgress);
     setView('dashboard');
   };
 
@@ -267,7 +229,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handleInteractionComplete = (interaction: Interaction) => {
-    const newSkills = updateHierarchicalKnowledge(progress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
+    const newSkills = updateHierarchicalKnowledge(progress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
     const newHistory = [...progress.history, interaction];
     const updated = { ...progress, skills: newSkills, history: newHistory };
     
@@ -277,25 +239,41 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 
   const handleSimulationStart = (config: SimulationConfig) => {
     setActiveSimulation(config);
-    setCustomSimulationTopics(null); // Reseta para usar os tópicos padrão do módulo
+    setCustomSimulationTopics(null); 
     setView('simulation_session');
   };
 
   const handleSimulationComplete = (interactions: Interaction[]) => {
+    // 1. Consolida o progresso FINAL antes de sair
+    let currentProgress = { ...progress };
+
+    // Se NÃO for modo semanal (interativo), processamos o lote inteiro de uma vez
     if (subCategory !== 'weekly') {
-      let currentProgress = { ...progress };
       interactions.forEach(interaction => {
-         const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
+         // Ajuste fino nos parâmetros BKT para dar mais sensação de avanço (p_transit 0.2)
+         const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
          const newHistory = [...currentProgress.history, interaction];
          currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
       });
-      setProgress(currentProgress);
-      if (onUpdateProgress) onUpdateProgress(currentProgress);
+    } else {
+      // Se for modo semanal, as habilidades já foram atualizadas via handleInteractionComplete (passado como onUpdateSkill)
+      // Mas garantimos que o histórico esteja consistente e salvamos tudo.
+      // O estado 'progress' local já deve ter as atualizações, então apenas confirmamos o salvamento.
+      currentProgress = { ...progress };
     }
     
+    setProgress(currentProgress);
+    
+    // Força sincronização com App.tsx e Backend
+    if (onUpdateProgress) onUpdateProgress(currentProgress);
+    if (user) saveUserProgress(user.uid, currentProgress);
+    
+    // 2. Navegação
     if (subCategory === 'weekly') {
+      // Se acabou a semana, sai do módulo
       onExit();
     } else {
+      // Se foi simulado avulso, volta pro hub
       setView('simulations');
       setActiveSimulation(null);
     }
@@ -313,7 +291,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     if (onUpdateProgress) onUpdateProgress(updated);
   };
 
-  // Favorites Logic
   const handleToggleFavorite = (question: Question) => {
     const isFav = progress.favorites.some(q => q.id === question.id);
     let newFavs;
@@ -362,7 +339,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
              </div>
           </div>
           
-          {/* Esconde navegação se estiver no modo "Foco Semanal" ou em passos de configuração inicial */}
           {subCategory !== 'weekly' && view !== 'placement_intro' && view !== 'plan_setup_internal' && (
             <div className="flex gap-1 md:gap-2 overflow-x-auto">
               <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
@@ -381,7 +357,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 
       <main className="max-w-7xl mx-auto p-4 py-8">
         
-        {/* NEW VIEW: Placement Introduction Choice */}
         {view === 'placement_intro' && (
           <div className="max-w-4xl mx-auto text-center py-12 animate-in fade-in duration-500">
             <h1 className="text-3xl font-black text-slate-900 mb-4">Bem-vindo à sua Trilha</h1>
@@ -390,7 +365,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-              {/* Option 1: Start from Scratch */}
               <button 
                 onClick={handleStartFromZero}
                 className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
@@ -408,7 +382,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
                 </div>
               </button>
 
-              {/* Option 2: Placement Test */}
               <button 
                 onClick={() => setView('placement')}
                 className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-indigo-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
@@ -437,7 +410,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
           />
         )}
         
-        {/* NEW VIEW: Internal Plan Setup */}
         {view === 'plan_setup_internal' && (
           <StudyPlanSetup 
             progress={progress} 
@@ -455,7 +427,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
         )}
         {view === 'dashboard' && (
           <div className="space-y-6">
-            {/* Context Header for Plan Restriction */}
             {progress.studyPlan && progress.studyPlan.category === category && visibleTopics.length < currentTopics.length && (
               <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center gap-3">
                 <Lock className="w-5 h-5 text-indigo-600" />
