@@ -113,10 +113,12 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       getFullGoalDescription(), 
       deadline, 
       chosenMinutes,
-      selectedTopics
+      selectedTopics,
+      category // Pass category to enforce strict module boundaries
     );
 
     const newPlan: StudyPlan = {
+      category: category, // Save category
       goal: getFullGoalDescription(),
       deadline,
       dailyMinutes: chosenMinutes,

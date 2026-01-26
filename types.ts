@@ -133,6 +133,7 @@ export interface StudyWeek {
 }
 
 export interface StudyPlan {
+  category: 'math' | 'concursos'; // Identifica o módulo do plano
   goal: string; // ex: "Passar na ESA", "Aprender para Escola"
   deadline: string; // ISO Date
   dailyMinutes: number;

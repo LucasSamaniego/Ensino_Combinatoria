@@ -5,7 +5,9 @@ import {
   TopicId, 
   Interaction,
   SimulationConfig,
-  Question
+  Question,
+  Difficulty,
+  StudyPlan
 } from '../types';
 import { 
   BASIC_MATH_TOPICS,
@@ -27,24 +29,41 @@ import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
 import FavoritesView from './FavoritesView';
+import StudyPlanSetup from './StudyPlanSetup';
 
-import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap, Star } from 'lucide-react';
+import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap, Star, Lock, Sprout, ArrowRight } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
   onExit: () => void;
   category: 'math' | 'concursos';
-  subCategory?: string; // 'basic' | 'combinatorics' | undefined
+  subCategory?: string; // 'basic' | 'combinatorics' | 'weekly' | undefined
+  weeklyTopics?: string[]; // Topics from the weekly plan
+  weeklyTheme?: string;
+  initialProgress?: UserProgress; // New prop to prevent state loss
   onUpdateProgress?: (progress: UserProgress) => void;
 }
 
-const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, category, subCategory, onUpdateProgress }) => {
+const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ 
+  onExit, 
+  category, 
+  subCategory, 
+  weeklyTopics, 
+  weeklyTheme,
+  initialProgress,
+  onUpdateProgress 
+}) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
+  // Adicionado 'plan_setup_internal' ao estado de visualização
+  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement_intro' | 'placement' | 'plan_setup_internal' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
   
   const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
-  const [progress, setProgress] = useState<UserProgress>(getEmptyProgress());
+  // Initialize with passed prop if available, otherwise empty
+  const [progress, setProgress] = useState<UserProgress>(initialProgress || getEmptyProgress());
+  
+  // Custom available topics list (used for Weekly Study)
+  const [customSimulationTopics, setCustomSimulationTopics] = useState<{ id: TopicId; name: string }[] | null>(null);
 
   // Determine which topics to show based on category and subCategory
   const getCurrentTopics = () => {
@@ -57,19 +76,58 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
   };
 
   const currentTopics = getCurrentTopics();
-  const moduleTitle = subCategory === 'basic' ? 'Matemática Básica' : (subCategory === 'combinatorics' ? 'Análise Combinatória' : (category === 'math' ? 'Matemática' : 'Concursos'));
+  let moduleTitle = '';
+  
+  if (subCategory === 'basic') moduleTitle = 'Matemática Básica';
+  else if (subCategory === 'combinatorics') moduleTitle = 'Análise Combinatória';
+  else if (subCategory === 'weekly') moduleTitle = 'Plano Semanal';
+  else moduleTitle = category === 'math' ? 'Matemática' : 'Concursos';
+
+  // --- FILTER TOPICS BASED ON STUDY PLAN ---
+  // If a plan exists for this category, restrict visible topics to those in the plan.
+  const getVisibleTopics = () => {
+    // Only restrict if we are in the main module view, not sub-modules like 'basic' which are fixed content
+    // Also, don't restrict if subCategory is 'weekly' because that view is handled separately
+    if (subCategory === 'weekly' || subCategory === 'basic') return currentTopics;
+
+    // Check if there is a plan for this category
+    if (progress.studyPlan && progress.studyPlan.category === category) {
+      const planTopics = new Set(
+        progress.studyPlan.generatedSchedule.flatMap(w => w.topicsToStudy)
+      );
+      
+      // Filter currentTopics. We match by name because generatedSchedule stores strings
+      // Ideally we would map names to IDs, but fuzzy matching or direct inclusion is safer here.
+      return currentTopics.filter(t => planTopics.has(t.name));
+    }
+
+    return currentTopics;
+  };
+
+  const visibleTopics = getVisibleTopics();
 
   // Carregamento Assíncrono do Progresso
   useEffect(() => {
     let isMounted = true;
 
     const initProgress = async () => {
+      // If we already have initialProgress from props, use it and don't re-fetch
+      // This prevents overwriting the new plan created in the parent component
+      if (initialProgress) {
+         if (isMounted) {
+            setProgress(initialProgress);
+            handleViewRouting(initialProgress);
+            setLoading(false);
+         }
+         return;
+      }
+
       if (user) {
         setLoading(true);
         const data = await loadUserProgress(user.uid);
         if (isMounted) {
           setProgress(data);
-          setView('dashboard');
+          handleViewRouting(data);
           setLoading(false);
         }
       }
@@ -78,7 +136,59 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     initProgress();
 
     return () => { isMounted = false; };
-  }, [user, category, subCategory]);
+  }, [user, category, subCategory, initialProgress]);
+
+  // Centralized View Routing Logic
+  const handleViewRouting = (data: UserProgress) => {
+    // 1. If user hasn't done placement/setup, go to Intro Selection
+    if (!data.hasCompletedPlacement) {
+      setView('placement_intro');
+      return;
+    }
+
+    // 2. Se já completou nivelamento MAS não tem plano para esta categoria, força setup
+    // Nota: Verificamos se o plano existente bate com a categoria atual
+    const hasPlanForCategory = data.studyPlan && data.studyPlan.category === category;
+    if (data.hasCompletedPlacement && !hasPlanForCategory) {
+       setView('plan_setup_internal');
+       return;
+    }
+
+    // 3. If specifically in Weekly Mode
+    if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
+      startWeeklySession();
+      return;
+    }
+
+    // 4. Default Dashboard
+    setView('dashboard');
+  };
+
+  // Função para iniciar a sessão semanal automaticamente
+  const startWeeklySession = () => {
+     // Cria uma configuração de simulado temporária
+     const weeklyConfig: SimulationConfig = {
+       id: 'weekly_auto',
+       title: weeklyTheme || 'Meta da Semana',
+       description: 'Ciclo de aprendizagem adaptativa focado nos tópicos da semana.',
+       style: 'School', // Pode ser adaptativo no futuro
+       questionCount: 5, // Será ignorado pelo modo adaptativo que usa ciclos
+       difficulty: Difficulty.INTERMEDIATE 
+     };
+     
+     // Converte as strings de tópicos em objetos para o SimulationSession
+     const topicsObjects = (weeklyTopics || []).map((tName, i) => {
+        const found = currentTopics.find(ct => ct.name === tName);
+        return {
+           id: found ? found.id : `week_topic_${i}` as TopicId,
+           name: tName
+        };
+     });
+
+     setCustomSimulationTopics(topicsObjects);
+     setActiveSimulation(weeklyConfig);
+     setView('simulation_session');
+  };
 
   // Salvamento Automático (Debounced ou no efeito do progress)
   useEffect(() => {
@@ -88,6 +198,16 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     }
   }, [progress, user, loading]);
 
+  // Option 1: Start from Scratch -> GO TO PLAN SETUP
+  const handleStartFromZero = () => {
+    // Define que completou o nivelamento (mesmo que pulando), mas mantém skills básicas
+    const newProgress = { ...progress, hasCompletedPlacement: true };
+    setProgress(newProgress);
+    // Não salva globalmente ainda para evitar flash de conteúdo sem plano
+    setView('plan_setup_internal'); 
+  };
+
+  // Option 2: Placement Test Completion -> GO TO PLAN SETUP
   const handlePlacementComplete = (results: Interaction[]) => {
     const correctCount = results.filter(r => r.isCorrect).length;
     const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
@@ -112,14 +232,21 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
       history: [...progress.history, ...results]
     };
 
-    // Atualiza estado local
+    // Atualiza estado local e vai para criação do plano
     setProgress(newProgress);
+    setView('plan_setup_internal');
+  };
 
-    // Sincroniza com o componente Pai (App.tsx) imediatamente para que ele saiba que o nivelamento acabou
+  // FINAL STEP: Plan Created -> GO TO DASHBOARD
+  const handlePlanCreatedInternal = async (plan: StudyPlan) => {
+    const updatedProgress = { ...progress, studyPlan: plan };
+    setProgress(updatedProgress);
+    
+    // Agora sim, sincronizamos tudo com o backend e App.tsx
     if (onUpdateProgress) {
-      onUpdateProgress(newProgress);
+      onUpdateProgress(updatedProgress);
     }
-
+    
     setView('dashboard');
   };
 
@@ -145,28 +272,33 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
     const updated = { ...progress, skills: newSkills, history: newHistory };
     
     setProgress(updated);
-    // Opcional: sincronizar a cada interação pode ser pesado, deixamos o useEffect lidar ou passamos se for crítico
     if (onUpdateProgress) onUpdateProgress(updated);
   };
 
   const handleSimulationStart = (config: SimulationConfig) => {
     setActiveSimulation(config);
+    setCustomSimulationTopics(null); // Reseta para usar os tópicos padrão do módulo
     setView('simulation_session');
   };
 
   const handleSimulationComplete = (interactions: Interaction[]) => {
-    let currentProgress = { ...progress };
-    interactions.forEach(interaction => {
-       const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
-       const newHistory = [...currentProgress.history, interaction];
-       currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
-    });
+    if (subCategory !== 'weekly') {
+      let currentProgress = { ...progress };
+      interactions.forEach(interaction => {
+         const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 });
+         const newHistory = [...currentProgress.history, interaction];
+         currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
+      });
+      setProgress(currentProgress);
+      if (onUpdateProgress) onUpdateProgress(currentProgress);
+    }
     
-    setProgress(currentProgress);
-    if (onUpdateProgress) onUpdateProgress(currentProgress);
-    
-    setView('simulations');
-    setActiveSimulation(null);
+    if (subCategory === 'weekly') {
+      onExit();
+    } else {
+      setView('simulations');
+      setActiveSimulation(null);
+    }
   };
 
   const handleCardReview = (cardId: string, grade: ReviewGrade) => {
@@ -230,21 +362,73 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
              </div>
           </div>
           
-          <div className="flex gap-1 md:gap-2 overflow-x-auto">
-            <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
-            <button onClick={() => setView('favorites')} className={`p-2 rounded-lg ${view === 'favorites' ? 'bg-slate-100' : ''}`} title="Favoritos"><Star className="w-5 h-5" /></button>
-            <button onClick={() => setView('placement')} className={`p-2 rounded-lg ${view === 'placement' ? 'bg-slate-100' : ''}`} title="Teste de Nivelamento"><GraduationCap className="w-5 h-5" /></button>
-            <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`} title="Simulados"><Target className="w-5 h-5" /></button>
-            <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`} title="Revisão">
-              <Brain className="w-5 h-5" />
-              {dueCards.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
-            </button>
-            <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`} title="Relatórios"><BarChart2 className="w-5 h-5" /></button>
-          </div>
+          {/* Esconde navegação se estiver no modo "Foco Semanal" ou em passos de configuração inicial */}
+          {subCategory !== 'weekly' && view !== 'placement_intro' && view !== 'plan_setup_internal' && (
+            <div className="flex gap-1 md:gap-2 overflow-x-auto">
+              <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
+              <button onClick={() => setView('favorites')} className={`p-2 rounded-lg ${view === 'favorites' ? 'bg-slate-100' : ''}`} title="Favoritos"><Star className="w-5 h-5" /></button>
+              <button onClick={() => setView('placement')} className={`p-2 rounded-lg ${view === 'placement' ? 'bg-slate-100' : ''}`} title="Refazer Nivelamento"><GraduationCap className="w-5 h-5" /></button>
+              <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`} title="Simulados"><Target className="w-5 h-5" /></button>
+              <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`} title="Revisão">
+                <Brain className="w-5 h-5" />
+                {dueCards.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
+              </button>
+              <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`} title="Relatórios"><BarChart2 className="w-5 h-5" /></button>
+            </div>
+          )}
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto p-4 py-8">
+        
+        {/* NEW VIEW: Placement Introduction Choice */}
+        {view === 'placement_intro' && (
+          <div className="max-w-4xl mx-auto text-center py-12 animate-in fade-in duration-500">
+            <h1 className="text-3xl font-black text-slate-900 mb-4">Bem-vindo à sua Trilha</h1>
+            <p className="text-slate-500 max-w-lg mx-auto mb-12">
+              Para criarmos o plano de estudo ideal, precisamos entender seu ponto de partida. Como você prefere começar?
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+              {/* Option 1: Start from Scratch */}
+              <button 
+                onClick={handleStartFromZero}
+                className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Sprout className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Começar do Zero</h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Nunca estudei este assunto ou quero rever tudo desde a base.
+                </p>
+                <div className="mt-auto flex items-center text-sm font-bold text-emerald-600 uppercase tracking-widest">
+                  Criar Plano Básico <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+
+              {/* Option 2: Placement Test */}
+              <button 
+                onClick={() => setView('placement')}
+                className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-indigo-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <GraduationCap className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Teste de Nivelamento</h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Já tenho algum conhecimento e quero pular conteúdos básicos.
+                </p>
+                <div className="mt-auto flex items-center text-sm font-bold text-indigo-600 uppercase tracking-widest">
+                  Fazer Avaliação <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
         {view === 'placement' && (
           <PlacementTest 
             category={category} 
@@ -252,6 +436,16 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
             onComplete={handlePlacementComplete} 
           />
         )}
+        
+        {/* NEW VIEW: Internal Plan Setup */}
+        {view === 'plan_setup_internal' && (
+          <StudyPlanSetup 
+            progress={progress} 
+            onPlanCreated={handlePlanCreatedInternal} 
+            category={category} 
+          />
+        )}
+
         {view === 'favorites' && (
           <FavoritesView 
             favorites={progress.favorites}
@@ -260,21 +454,33 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
           />
         )}
         {view === 'dashboard' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentTopics.map(topic => (
-              <SkillCard 
-                key={topic.id}
-                topic={topic}
-                parentStats={progress.skills[topic.id]} 
-                allSkills={progress.skills} 
-                onClick={handleTopicSelect}
-              />
-            ))}
-            {currentTopics.length === 0 && (
-              <div className="col-span-full text-center text-gray-400 py-12">
-                Nenhum tópico encontrado para este módulo.
+          <div className="space-y-6">
+            {/* Context Header for Plan Restriction */}
+            {progress.studyPlan && progress.studyPlan.category === category && visibleTopics.length < currentTopics.length && (
+              <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center gap-3">
+                <Lock className="w-5 h-5 text-indigo-600" />
+                <div className="text-sm text-indigo-900">
+                  <span className="font-bold">Modo Focado:</span> Exibindo apenas os tópicos presentes no seu Plano de Estudos: <strong>{progress.studyPlan.goal}</strong>.
+                </div>
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visibleTopics.map(topic => (
+                <SkillCard 
+                  key={topic.id}
+                  topic={topic}
+                  parentStats={progress.skills[topic.id]} 
+                  allSkills={progress.skills} 
+                  onClick={handleTopicSelect}
+                />
+              ))}
+              {visibleTopics.length === 0 && (
+                <div className="col-span-full text-center text-gray-400 py-12">
+                  Nenhum tópico encontrado para este módulo ou plano de estudos.
+                </div>
+              )}
+            </div>
           </div>
         )}
         {view === 'practice' && activeTopic && (
@@ -294,9 +500,14 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ onExit, categ
         {view === 'simulation_session' && activeSimulation && (
           <SimulationSession 
             config={activeSimulation} 
-            availableTopics={currentTopics}
+            category={category}
+            availableTopics={customSimulationTopics || currentTopics}
+            userSkills={progress.skills} 
             onComplete={handleSimulationComplete} 
-            onCancel={() => setView('simulations')} 
+            onCancel={() => subCategory === 'weekly' ? onExit() : setView('simulations')}
+            onUpdateSkill={handleInteractionComplete} // Passa handler para atualizar BKT em tempo real
+            onToggleFavorite={handleToggleFavorite}   // Passa handler de favoritos
+            isFavorite={isFavorite}                   // Passa verificação
           />
         )}
         {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}

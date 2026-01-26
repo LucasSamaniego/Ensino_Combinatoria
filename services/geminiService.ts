@@ -453,15 +453,40 @@ export const generateStudyPath = async (
   goalDescription: string, 
   deadline: string, 
   dailyMinutes: number,
-  selectedTopics: string[] = []
+  selectedTopics: string[] = [],
+  category?: 'math' | 'concursos'
 ): Promise<StudyWeek[]> => {
   
+  // 1. Calculate the actual time available
+  const now = new Date();
+  const targetDate = new Date(deadline);
+  const diffTime = Math.abs(targetDate.getTime() - now.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  const diffWeeks = Math.ceil(diffDays / 7);
+
+  // Determine if we should plan by days (short term) or weeks (long term)
+  const isShortTerm = diffWeeks < 2;
+  const timeUnit = isShortTerm ? 'DIAS' : 'SEMANAS';
+  const timeQuantity = isShortTerm ? diffDays : diffWeeks;
+
+  // Create a Persona and Constraints based on the Category
+  let personaInstruction = "";
+  if (category === 'math') {
+    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas.";
+    personaInstruction += " IMPORTANTE: Você está estritamente PROIBIDO de incluir tópicos de Direito, Leis ou Humanas. Foque APENAS em Matemática.";
+  } else if (category === 'concursos') {
+    personaInstruction = "Você é um Especialista em Concursos Públicos (Área Jurídica e Administrativa).";
+    personaInstruction += " IMPORTANTE: Foque APENAS em tópicos de Direito, Legislação e Lógica para concursos. Não inclua matemática pura de escola.";
+  } else {
+    personaInstruction = "Você é um Coordenador Pedagógico Geral.";
+  }
+
   const topicConstraint = selectedTopics.length > 0
-    ? `RESTRIÇÃO CRÍTICA: O plano de estudos DEVE conter APENAS assuntos relacionados à lista: [${selectedTopics.join(', ')}]. NÃO inclua tópicos fora desta lista.`
+    ? `RESTRIÇÃO CRÍTICA DE ESCOPO: O plano de estudos DEVE conter APENAS assuntos EXPLICITAMENTE LISTADOS AQUI: [${selectedTopics.join(', ')}]. NÃO INVENTE TÓPICOS NOVOS e NÃO INCLUA TÓPICOS DE OUTRAS MATÉRIAS.`
     : '';
 
   const prompt = `
-    Atue como um coordenador pedagógico de elite especializado em personalização de ensino.
+    ${personaInstruction}
     
     DADOS DO ALUNO:
     - CONTEXTO ESPECÍFICO DO OBJETIVO: ${goalDescription}
@@ -469,15 +494,20 @@ export const generateStudyPath = async (
     - Tempo Diário Disponível: ${dailyMinutes} minutos
     - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica'}
 
+    DURAÇÃO DO PLANO:
+    Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
+    NÃO crie um plano genérico de 12 semanas se o prazo for diferente.
+    Se a unidade for DIAS, o campo "weekNumber" no JSON representará o "Dia".
+    Se a unidade for SEMANAS, o campo "weekNumber" representará a "Semana".
+
     ${topicConstraint}
 
     INSTRUÇÕES DE PLANEJAMENTO:
-    1. Calcule quantas semanas faltam até a data limite.
-    2. Distribua APENAS os tópicos selecionados ao longo dessas semanas.
-    3. Se houver lacunas (weaknesses) que afetam esses tópicos, inclua revisão delas no início.
-    4. Gere no máximo 12 semanas.
+    1. Distribua APENAS os tópicos selecionados da lista acima ao longo das ${timeQuantity} ${timeUnit}.
+    2. Se a lista de tópicos for pequena, aprofunde neles. Se for grande, priorize o básico.
+    3. Gere EXATAMENTE ${timeQuantity} itens no array (nem mais, nem menos).
     
-    Retorne JSON Array de Semanas no seguinte schema:
+    Retorne JSON Array de Semanas/Dias no seguinte schema:
     [{ "weekNumber": 1, "theme": "Tema Central", "topicsToStudy": ["Tópico 1", "Tópico 2"], "focusArea": "Fixation" | "Practice" | "Revision" | "Advanced" }]
   `;
 

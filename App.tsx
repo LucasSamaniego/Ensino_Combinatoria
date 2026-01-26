@@ -33,6 +33,8 @@ const MainApp: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<Category>('math');
   const [activeSubCategory, setActiveSubCategory] = useState<string | undefined>(undefined);
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
+  const [weeklyStudyTopics, setWeeklyStudyTopics] = useState<string[]>([]);
+  const [weeklyTheme, setWeeklyTheme] = useState<string>('');
 
   // Efeito para carregar progresso APENAS quando o usuário muda/loga.
   useEffect(() => {
@@ -61,10 +63,26 @@ const MainApp: React.FC = () => {
 
   // Callback para receber atualizações do módulo filho (CombinatoricsModule)
   const handleProgressUpdate = async (newProgress: UserProgress) => {
-    setUserProgress(newProgress);
+    // PREVENÇÃO CRÍTICA DE PERDA DE DADOS:
+    // O módulo filho pode não ter o studyPlan se carregou o estado do disco antes da atualização em memória.
+    // Garantimos que o studyPlan do estado atual do App seja preservado se o filho não o tiver.
+    const mergedProgress = {
+       ...newProgress,
+       studyPlan: newProgress.studyPlan || userProgress?.studyPlan
+    };
+
+    setUserProgress(mergedProgress);
     if (user) {
-      await saveUserProgress(user.uid, newProgress);
+      await saveUserProgress(user.uid, mergedProgress);
     }
+  };
+
+  // Handler para iniciar o estudo da semana a partir da Timeline
+  const handleStartWeek = (topics: string[], theme: string) => {
+    setWeeklyStudyTopics(topics);
+    setWeeklyTheme(theme);
+    // Navega para o módulo ativo, mas com uma "subcategoria" especial
+    enterModule(activeCategory, 'weekly'); 
   };
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-sm uppercase tracking-widest text-slate-400">Loading System...</div>;
@@ -93,8 +111,10 @@ const MainApp: React.FC = () => {
     if (sub) {
       setCurrentView('module_active');
     } else {
-      // 3. Se for dashboard da matéria, verifica se tem plano
-      if (userProgress?.hasCompletedPlacement && !userProgress?.studyPlan) {
+      // 3. Se for dashboard da matéria, verifica se tem plano PARA ESTA CATEGORIA
+      const hasPlanForThisCategory = userProgress?.studyPlan?.category === cat;
+      
+      if (userProgress?.hasCompletedPlacement && !hasPlanForThisCategory) {
         setCurrentView('plan_setup');
       } else {
         setCurrentView(`subject_${cat}` as ViewState);
@@ -117,7 +137,7 @@ const MainApp: React.FC = () => {
       )}
 
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter uppercase">Plataforma de Ensino</h1>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter uppercase">Plataforma de Estudos</h1>
         <p className="text-lg text-slate-500 max-w-2xl mx-auto">
           Olá, <span className="text-indigo-600 font-bold">{firstName}</span>. 
           {userProgress?.studyPlan 
@@ -237,9 +257,28 @@ const MainApp: React.FC = () => {
           </button>
         </div>
 
-        {/* Display Adaptive Study Plan if Available */}
-        {userProgress?.studyPlan && (
-          <StudyPathTimeline plan={userProgress.studyPlan} />
+        {/* Display Adaptive Study Plan if Available AND matches Category */}
+        {userProgress?.studyPlan && userProgress.studyPlan.category === cat && (
+          <StudyPathTimeline 
+            plan={userProgress.studyPlan} 
+            onStartWeek={handleStartWeek} 
+          />
+        )}
+        
+        {/* If plan exists but is for another category, show a small note or button */}
+        {userProgress?.studyPlan && userProgress.studyPlan.category !== cat && (
+          <div className="bg-slate-100 border border-slate-200 p-4 rounded-xl mb-8 flex items-center justify-between">
+             <div className="text-slate-600 text-sm">
+                Você tem um plano ativo em <strong>{userProgress.studyPlan.category === 'math' ? 'Matemática' : 'Concursos'}</strong>.
+                Para criar um plano para <strong>{cat === 'math' ? 'Matemática' : 'Concursos'}</strong>, clique abaixo.
+             </div>
+             <button 
+               onClick={() => setCurrentView('plan_setup')}
+               className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg uppercase"
+             >
+               Criar Plano para {cat === 'math' ? 'Matemática' : 'Concursos'}
+             </button>
+          </div>
         )}
 
         {/* Warning if Placement not done */}
@@ -321,10 +360,13 @@ const MainApp: React.FC = () => {
       )}
       {currentView === 'subject_math' && renderSubjectDetail('math')}
       {currentView === 'subject_concursos' && renderSubjectDetail('concursos')}
-      {currentView === 'module_active' && (
+      {currentView === 'module_active' && userProgress && (
         <CombinatoricsModule 
           category={activeCategory} 
           subCategory={activeSubCategory}
+          weeklyTopics={weeklyStudyTopics}
+          weeklyTheme={weeklyTheme}
+          initialProgress={userProgress} // Passando progresso inicial para evitar sobrescrita
           onUpdateProgress={handleProgressUpdate}
           onExit={() => enterModule(activeCategory)} 
         />
