@@ -36,12 +36,13 @@ export const generateProblem = async (
   let persona = "";
   let constraints = "";
   let visualInstruction = "";
+  let toolsConfig = undefined; // Configuração de ferramentas (Search)
   
   // Verificação se é Matemática Básica (Módulos 0-7)
   const isBasicMath = topicId.startsWith('math_basics_');
 
   if (category === 'math') {
-    // --- Lógica para Matemática (Pode gerar ou buscar) ---
+    // --- Lógica para Matemática (Geração Didática) ---
     if (isBasicMath) {
       persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
       constraints = `
@@ -68,10 +69,12 @@ export const generateProblem = async (
     `;
 
   } else {
-    // --- Lógica para Concursos (STRICT ARCHIVE MODE) ---
-    persona = "Você é um ARQUIVISTA DE PROVAS E BANCO DE QUESTÕES (Crawler de Concursos).";
+    // --- Lógica para Concursos (SEARCH ENGINE MODE) ---
+    // Habilita Google Search para encontrar a questão real na web
+    toolsConfig = [{ googleSearch: {} }];
+
+    persona = "ATUE COMO UM MOTOR DE BUSCA ESPECIALIZADO EM PROVAS E CONCURSOS PÚBLICOS.";
     
-    // Lógica Estrita de Filtro de Banca (ZERO TOLERANCE)
     const contextUpper = contextInfo ? contextInfo.toUpperCase() : "";
     const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco"));
     const isCebraspe = contextUpper.includes("CEBRASPE") || contextUpper.includes("CESPE");
@@ -80,45 +83,39 @@ export const generateProblem = async (
     
     if (hasSpecificBoards) {
         boardInstruction = `
-        PROTOCOLOS DE FILTRAGEM (ZERO TOLERANCE):
+        PROTOCOLOS DE BUSCA (PRIORIDADE MÁXIMA):
         1. O usuário definiu um filtro EXCLUSIVO: ${contextInfo}.
-        2. SUA TAREFA É RETORNAR UMA QUESTÃO APENAS DESSAS BANCAS ESPECÍFICAS.
-        3. É ESTRITAMENTE PROIBIDO retornar questões de bancas que não estejam na lista acima.
-        4. SE NÃO EXISTIR questão exata para o subtópico "${subSkillName}" nessas bancas:
-           - NÃO mude de banca.
-           - Em vez disso, busque uma questão da MESMA BANCA sobre o tópico pai "${topicName}" ou um assunto correlato.
-           - A fidelidade à BANCA é mais importante que a fidelidade ao SUBTÓPICO.
+        2. UTILIZE O GOOGLE SEARCH AGORA para encontrar uma questão REAL da banca solicitada.
+        3. Busque por termos como: "Questão [Banca] [Assunto] [Ano]".
+        4. É ESTRITAMENTE PROIBIDO inventar a questão. Se o Search retornar uma questão real, use-a palavra por palavra.
         5. Se o usuário pediu "FGV", e você retornar "Cebraspe", isso será considerado ERRO CRÍTICO.
         `;
 
         if (isCebraspe) {
           boardInstruction += `
           \nPROTOCOLO ESPECIAL CEBRASPE/CESPE:
-          - A maioria das questões desta banca é do tipo "JULGUE O ITEM" (Certo ou Errado).
-          - SE a questão original for de "Certo ou Errado", o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
+          - Ao buscar, verifique se a questão é do tipo "Certo/Errado" (Julgue o Item).
+          - SE a questão original encontrada for de "Certo ou Errado", o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
           - O campo "correctAnswer" deve ser "Certo" ou "Errado".
-          - NÃO invente alternativas (A, B, C, D) se a questão original não tiver.
-          - Se a questão for de múltipla escolha (estilo Cebraspe Múltipla Escolha), use as alternativas originais.
           `;
         }
     } else {
-        boardInstruction = "Bancas sugeridas: FGV, Cebraspe, Vunesp, FCC. (Busque das maiores se não houver filtro específico).";
+        boardInstruction = "Utilize o Google Search para encontrar questões de bancas renomadas (FGV, Cebraspe, Vunesp, FCC).";
     }
 
     constraints = `
-      ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM).
-      VOCÊ ESTÁ PROIBIDO DE CRIAR, INVENTAR OU ADAPTAR QUESTÕES.
+      ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM) VIA BUSCA.
       
       SUA MISSÃO:
-      1.  Localize na sua base de dados uma questão REAL que caiu em prova recentemente (anos 2022, 2023 ou 2024).
+      1.  PESQUISE na web uma questão que caiu em prova recentemente (2022-2024).
       2.  ${boardInstruction}
       3.  Tópico Alvo: ${topicName} > ${subSkillName}.
-      4.  COPIE O ENUNCIADO EXATAMENTE como estava no caderno de prova.
-      5.  COPIE AS ALTERNATIVAS EXATAMENTE como estavam (Respeitando Certo/Errado se for o caso).
+      4.  COPIE O ENUNCIADO EXATAMENTE como encontrado no resultado da busca.
+      5.  COPIE AS ALTERNATIVAS EXATAMENTE como encontradas.
       
       REGRAS DE METADADOS:
-      - 'banca': Deve ser o nome real da organizadora (ex: FGV, CEBRASPE).
-      - 'source': Deve conter "Órgão - Cargo - Ano" (ex: "PF - Agente - 2021").
+      - 'banca': Nome da banca encontrada na busca.
+      - 'source': Órgão, Cargo e Ano encontrados na busca.
     `;
 
     visualInstruction = `
@@ -160,6 +157,7 @@ export const generateProblem = async (
       model: modelName,
       contents: prompt,
       config: {
+        tools: toolsConfig, // Injeta o Google Search se for Concursos
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -186,6 +184,11 @@ export const generateProblem = async (
     });
 
     const data = JSON.parse(response.text || '{}');
+    
+    // Log para debug de Search Grounding (Opcional, mas útil)
+    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+       console.log("Fontes encontradas:", response.candidates[0].groundingMetadata.groundingChunks);
+    }
     
     const safeViz = data.visualization && data.visualization.type === 'none' 
       ? data.visualization 
@@ -230,6 +233,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
   // Mantida lógica original do placement
   let persona = "";
   let contentFilter = "";
+  let toolsConfig = undefined;
   
   if (category === 'math') {
     if (subCategory === 'basic') {
@@ -240,9 +244,11 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
     }
   } else {
-    persona = "ARQUIVISTA DE CONCURSOS (Archive Mode).";
+    // Enable Search for Placement as well to get real questions
+    toolsConfig = [{ googleSearch: {} }];
+    persona = "ATUE COMO UM MOTOR DE BUSCA DE QUESTÕES REAIS.";
     contentFilter = `
-      RECUPERE 4 questões REAIS (CÓPIA FIEL) de concursos públicos recentes (2023-2024).
+      PESQUISE e RETORNE 4 questões REAIS (CÓPIA FIEL) de concursos públicos recentes (2023-2024).
       - 1 de Direito Administrativo (Banca FGV).
       - 1 de Direito Constitucional (Banca Cebraspe - Estilo Certo/Errado).
       - 1 de Direito Penal (Banca Vunesp).
@@ -266,6 +272,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       model: MODEL_FLASH,
       contents: prompt,
       config: {
+        tools: toolsConfig,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -317,6 +324,8 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     : '';
 
   let styleInstruction = "";
+  let toolsConfig = undefined;
+
   if (style === 'Olympiad') {
     styleInstruction = `
       ATENÇÃO: Este é um simulado de NÍVEL OLÍMPICO INTERNACIONAL.
@@ -324,19 +333,17 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       OBRIGATÓRIO: Citar a fonte real no campo 'source'.
     `;
   } else if (style === 'Concurso') {
+    toolsConfig = [{ googleSearch: {} }];
     styleInstruction = `
-      MODO ARQUIVO DE QUESTÕES (VERBATIM) COM FILTRO RÍGIDO.
+      ATUE COMO UM MOTOR DE BUSCA.
+      USE O GOOGLE SEARCH para encontrar ${questionCount} questões REAIS.
       
-      INSTRUÇÃO DE QUANTIDADE (REDUÇÃO PREFERENCIAL):
-      Você foi solicitado a buscar ${questionCount} questões.
-      
-      Bancas permitidas: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
+      Bancas preferenciais: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
       
       CEBRASPE/CESPE INSTRUCTION:
-      - Se selecionar questões do CEBRASPE, dê preferência ao formato ["Certo", "Errado"].
-      - Não transforme questões de Certo/Errado em Múltipla Escolha.
+      - Se o Search encontrar questões do CEBRASPE, mantenha o formato ["Certo", "Errado"].
       
-      MANDATÓRIO: Preencha 'banca' (ex: FGV) e 'source' (Órgão - Ano).
+      MANDATÓRIO: Copie o texto exato encontrado na busca. Preencha 'banca' e 'source'.
     `;
   } else if (style === 'Military') {
     styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica. Cite o ano da prova.";
@@ -357,6 +364,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       model: MODEL_FLASH, 
       contents: prompt, 
       config: { 
+        tools: toolsConfig,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
