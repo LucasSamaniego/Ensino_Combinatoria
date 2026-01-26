@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StudyPlan, UserProgress, SkillState } from '../types';
 import { generateStudyPath, calculateStudyEffort } from '../services/geminiService';
 import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS } from '../constants';
-import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers } from 'lucide-react';
+import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2 } from 'lucide-react';
 
 interface StudyPlanSetupProps {
   progress: UserProgress;
@@ -23,6 +23,9 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const [deadline, setDeadline] = useState('');
   const [userDailyMinutes, setUserDailyMinutes] = useState(60);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  
+  // Concursos Specific Data
+  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
 
   // AI Recommendation Data
   const [recommendedMinutes, setRecommendedMinutes] = useState(0);
@@ -34,10 +37,18 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     ? [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS] 
     : CONCURSOS_TOPICS;
 
-  // Initial selection (Select All by default)
+  // Initial setup based on category
   useEffect(() => {
+    // Topics selection default (Select All)
     if (availableTopics.length > 0 && selectedTopics.length === 0) {
       setSelectedTopics(availableTopics.map(t => t.name));
+    }
+
+    // Category specific Logic
+    if (category === 'concursos') {
+      setObjectiveType('contest'); // Auto-set contest for concursos module
+    } else {
+      setObjectiveType(null); // Reset for math
     }
   }, [category]);
 
@@ -55,7 +66,24 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     "Olimpíadas (OBMEP/OBM)", "Matemática Universitária (Cálculo/Álgebra)", "Curiosidade Pura & Hobby"
   ];
 
+  const examBoards = [
+    "FGV", "CEBRASPE (CESPE)", "FCC", "VUNESP", "CESGRANRIO", "IDECAN", "IBFC", "AOCP", "QUADRIX"
+  ];
+
+  const toggleBoard = (board: string) => {
+    if (selectedBoards.includes(board)) {
+      setSelectedBoards(selectedBoards.filter(b => b !== board));
+    } else {
+      setSelectedBoards([...selectedBoards, board]);
+    }
+  };
+
   const getFullGoalDescription = () => {
+    if (category === 'concursos') {
+      const boardsStr = selectedBoards.length > 0 ? selectedBoards.join(', ') : 'Todas as Principais';
+      return `Aprovação em Concurso Público. Foco total no estilo e jurisprudência das seguintes BANCAS: ${boardsStr}.`;
+    }
+
     if (objectiveType === 'school') {
       return `Reforço Escolar para o ${specificGoal} (Foco na BNCC e recuperação de notas)`;
     } else if (objectiveType === 'contest') {
@@ -132,36 +160,39 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   // 1. Goal Configuration Step
   const renderConfigStep = () => (
     <form onSubmit={handleConfigSubmit} className="space-y-8 animate-in fade-in">
-      {/* Objective Type */}
-      <div className="space-y-4">
-        <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
-          <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">1</span>
-          Qual seu foco principal?
-        </label>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button type="button" onClick={() => { setObjectiveType('school'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'school' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}`}>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'school' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}><School className="w-6 h-6" /></div>
-            <h3 className="font-bold text-slate-800">Escola</h3>
-            <p className="text-xs text-slate-500 mt-1">Reforço, provas e currículo escolar (BNCC).</p>
-          </button>
+      
+      {/* MATH MODULE: Objective Type Selection */}
+      {category === 'math' && (
+        <div className="space-y-4">
+          <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">1</span>
+            Qual seu foco principal?
+          </label>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button type="button" onClick={() => { setObjectiveType('school'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'school' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'school' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'}`}><School className="w-6 h-6" /></div>
+              <h3 className="font-bold text-slate-800">Escola</h3>
+              <p className="text-xs text-slate-500 mt-1">Reforço, provas e currículo escolar (BNCC).</p>
+            </button>
 
-          <button type="button" onClick={() => { setObjectiveType('contest'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'contest' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'}`}>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'contest' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Gavel className="w-6 h-6" /></div>
-            <h3 className="font-bold text-slate-800">Concursos</h3>
-            <p className="text-xs text-slate-500 mt-1">Militares, Vestibulares, Públicos e Enem.</p>
-          </button>
+            <button type="button" onClick={() => { setObjectiveType('contest'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'contest' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'contest' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Gavel className="w-6 h-6" /></div>
+              <h3 className="font-bold text-slate-800">Concursos</h3>
+              <p className="text-xs text-slate-500 mt-1">Militares, Vestibulares, Públicos e Enem.</p>
+            </button>
 
-          <button type="button" onClick={() => { setObjectiveType('deep_dive'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'deep_dive' ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}>
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'deep_dive' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Award className="w-6 h-6" /></div>
-            <h3 className="font-bold text-slate-800">Olímpico</h3>
-            <p className="text-xs text-slate-500 mt-1">OBMEP, Graduação e Matemática pura.</p>
-          </button>
+            <button type="button" onClick={() => { setObjectiveType('deep_dive'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'deep_dive' ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'deep_dive' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Award className="w-6 h-6" /></div>
+              <h3 className="font-bold text-slate-800">Olímpico</h3>
+              <p className="text-xs text-slate-500 mt-1">OBMEP, Graduação e Matemática pura.</p>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Specific Goal */}
-      {objectiveType && (
+      {/* MATH MODULE: Specific Goal Dropdown */}
+      {category === 'math' && objectiveType && (
         <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
             <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">2</span>
@@ -179,8 +210,54 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* Deadline */}
-      {specificGoal && (
+      {/* CONCURSOS MODULE: Board Selection (Replaces Specific Goal) */}
+      {category === 'concursos' && (
+        <div className="space-y-4 animate-in slide-in-from-top-4">
+          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-6">
+             <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+                <Gavel className="w-5 h-5" /> Configuração de Concurso Público
+             </h3>
+             <p className="text-xs text-indigo-700 mt-1">
+               Neste módulo, não perguntamos seu foco principal pois ele é, por definição, aprovação em cargos públicos.
+             </p>
+          </div>
+
+          <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">1</span>
+            Selecione as Bancas Prioritárias:
+          </label>
+          <p className="text-xs text-slate-500 -mt-2">O algoritmo irá priorizar questões e estilos destas organizadoras.</p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {examBoards.map((board) => {
+              const isSelected = selectedBoards.includes(board);
+              return (
+                <button 
+                  key={board} 
+                  type="button" 
+                  onClick={() => toggleBoard(board)} 
+                  className={`px-4 py-3 rounded-lg text-sm font-medium border transition-all text-left flex items-center justify-between ${
+                    isSelected 
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-[1.02]' 
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                  }`}
+                >
+                  <span className="flex items-center gap-2"><Building2 className="w-4 h-4 opacity-70"/> {board}</span>
+                  {isSelected && <Check className="w-4 h-4 text-white" />}
+                </button>
+              );
+            })}
+          </div>
+          {selectedBoards.length === 0 && (
+             <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+               <AlertTriangle className="w-3 h-3" /> Se nenhuma for selecionada, o modo será "Geral/Multibanca".
+             </p>
+          )}
+        </div>
+      )}
+
+      {/* Deadline (Common for both) */}
+      {(specificGoal || category === 'concursos') && (
         <div className="space-y-2 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-slate-400" /> Data da Prova / Meta
@@ -189,7 +266,11 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      <button type="submit" disabled={!objectiveType || !specificGoal || !deadline} className="w-full bg-slate-900 hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-300 mt-4 text-lg">
+      <button 
+        type="submit" 
+        disabled={category === 'math' ? (!objectiveType || !specificGoal || !deadline) : (!deadline)} 
+        className="w-full bg-slate-900 hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-300 mt-4 text-lg"
+      >
         Próximo: Selecionar Conteúdo <ArrowRight className="w-5 h-5" />
       </button>
     </form>
