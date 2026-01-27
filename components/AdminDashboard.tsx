@@ -98,18 +98,25 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                              key={courseId}
                              onClick={() => toggleCourse(courseId)}
                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all flex items-center justify-between ${
-                               isActive ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'
+                               isActive ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
                              }`}
                            >
                              <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded ${isActive ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-500'}`}>
                                    <Book className="w-5 h-5" />
                                 </div>
-                                <span className="font-bold uppercase text-sm">
-                                  {courseId === 'math' ? 'Matemática & Exatas' : 'Concursos & Direito'}
-                                </span>
+                                <div>
+                                  <span className="font-bold uppercase text-sm block text-slate-800">
+                                    {courseId === 'math' ? 'Matemática & Exatas' : 'Concursos & Direito'}
+                                  </span>
+                                  <span className={`text-xs font-bold uppercase tracking-wide ${isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    {isActive ? '● Acesso Liberado' : '○ Bloqueado'}
+                                  </span>
+                                </div>
                              </div>
-                             <div className={`w-4 h-4 rounded-full border ${isActive ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-300'}`}></div>
+                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isActive ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-300'}`}>
+                               {isActive && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                             </div>
                            </div>
                          );
                       })}
