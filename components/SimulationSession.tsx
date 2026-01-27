@@ -17,6 +17,7 @@ interface SimulationSessionProps {
   onUpdateSkill?: (interaction: Interaction) => void; 
   onToggleFavorite?: (question: Question) => void;
   isFavorite?: (id: string) => boolean;
+  studyGoalContext?: string; // New prop for context passing
 }
 
 type SessionPhase = 'intro' | 'active' | 'summary';
@@ -30,7 +31,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   onCancel,
   onUpdateSkill,
   onToggleFavorite,
-  isFavorite
+  isFavorite,
+  studyGoalContext
 }) => {
   // Modes: 'test' (Classic Simulation) vs 'interactive' (Weekly Study)
   const mode = config.id === 'weekly_auto' ? 'interactive' : 'test';
@@ -110,13 +112,15 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     const adaptiveDifficulty = getDifficultyForMastery(mastery);
 
     try {
+      // Usa generateProblem para buscar questão individualmente com o contexto correto
       const q = await generateProblem(
         category as 'math' | 'concursos',
         topic.name,
         topic.id,
         'adaptive_weekly',
-        'Ciclo Semanal',
-        adaptiveDifficulty
+        topic.name, // Passa o nome do tópico como subSkillName para guiar a busca
+        adaptiveDifficulty,
+        studyGoalContext // Contexto crucial (Edital/Bancas) para o Search
       );
       
       setQuestions(prev => [...prev, q]);

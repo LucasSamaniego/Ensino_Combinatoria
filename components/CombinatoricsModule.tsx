@@ -569,6 +569,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
             onUpdateSkill={handleInteractionComplete} 
             onToggleFavorite={handleToggleFavorite} 
             isFavorite={isFavorite}
+            studyGoalContext={studyGoalContext} // PASSING CONTEXT HERE
           />
         )}
         {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}

@@ -76,7 +76,7 @@ export const generateProblem = async (
     persona = "ATUE COMO UM MOTOR DE BUSCA ESPECIALIZADO EM PROVAS E CONCURSOS PÚBLICOS.";
     
     const contextUpper = contextInfo ? contextInfo.toUpperCase() : "";
-    const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco"));
+    const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco") || contextInfo.includes("Objetivo"));
     const isCebraspe = contextUpper.includes("CEBRASPE") || contextUpper.includes("CESPE");
     
     let boardInstruction = "";
@@ -84,11 +84,10 @@ export const generateProblem = async (
     if (hasSpecificBoards) {
         boardInstruction = `
         PROTOCOLOS DE BUSCA (PRIORIDADE MÁXIMA):
-        1. O usuário definiu um filtro EXCLUSIVO: ${contextInfo}.
-        2. UTILIZE O GOOGLE SEARCH AGORA para encontrar uma questão REAL da banca solicitada.
-        3. Busque por termos como: "Questão [Banca] [Assunto] [Ano]".
+        1. CONTEXTO DO USUÁRIO (CRÍTICO): ${contextInfo}.
+        2. UTILIZE O GOOGLE SEARCH AGORA para encontrar uma questão REAL alinhada a este contexto (Banca/Edital).
+        3. Termo de busca sugerido: "Questão concurso [Assunto Específico] [Banca] [Ano Recente]".
         4. É ESTRITAMENTE PROIBIDO inventar a questão. Se o Search retornar uma questão real, use-a palavra por palavra.
-        5. Se o usuário pediu "FGV", e você retornar "Cebraspe", isso será considerado ERRO CRÍTICO.
         `;
 
         if (isCebraspe) {
@@ -590,20 +589,35 @@ export const generateStudyPath = async (
   const timeQuantity = isShortTerm ? diffDays : diffWeeks;
 
   let personaInstruction = "";
+  let whitelistConstraint = "";
+
   if (category === 'math') {
-    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas. PROIBIDO incluir Direito/Leis ou tópicos de Concurso Público (exceto se for Matemática pura).";
+    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas.";
+    whitelistConstraint = "PROIBIDO incluir Direito/Leis ou tópicos de Concurso Público (exceto se for Matemática pura).";
   } else if (category === 'concursos') {
-    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque estritamente no Edital: Leis, Jurisprudência e Raciocínio Lógico Matemático (RLM) de Bancas. PROIBIDO incluir tópicos de matemática escolar básica que não caem em concurso.";
+    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque estritamente nas seguintes disciplinas: Direito Administrativo, Direito Constitucional, Direito Penal, Direito Processual Penal, Raciocínio Lógico e Informática.";
+    whitelistConstraint = `
+      RESTRIÇÃO SUPREMA DE ESCOPO:
+      O plano DEVE conter APENAS tópicos destas 6 áreas:
+      1. Direito Administrativo
+      2. Direito Constitucional
+      3. Direito Penal
+      4. Direito Processual Penal
+      5. Raciocínio Lógico
+      6. Informática
+      
+      NÃO adicione Português, Matemática Básica (Escolar) ou outras leis extravagantes que não se encaixem nessas categorias.
+    `;
   } else {
     personaInstruction = "Você é um Coordenador Pedagógico Geral.";
   }
 
   const topicConstraint = selectedTopics.length > 0
-    ? `RESTRIÇÃO CRÍTICA DE ESCOPO: O plano de estudos DEVE conter APENAS assuntos EXPLICITAMENTE LISTADOS AQUI: [${selectedTopics.join(', ')}]. NÃO INVENTE TÓPICOS NOVOS.`
+    ? `RESTRIÇÃO DE ESCOPO DO USUÁRIO: Além das restrições acima, dê prioridade TOTAL aos tópicos selecionados pelo usuário: [${selectedTopics.join(', ')}].`
     : '';
 
   const syllabusInstruction = syllabusContext 
-    ? `CONTEXTO DO EDITAL (MUITO IMPORTANTE): O usuário fez upload do edital. O resumo da análise é: "${syllabusContext}". Use isso para priorizar o que realmente cai.`
+    ? `CONTEXTO DO EDITAL (MUITO IMPORTANTE): O usuário fez upload do edital. O resumo da análise é: "${syllabusContext}". Use isso para priorizar o que realmente cai dentro das matérias permitidas.`
     : '';
 
   const prompt = `
@@ -620,10 +634,11 @@ export const generateStudyPath = async (
     DURAÇÃO DO PLANO:
     Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
     
+    ${whitelistConstraint}
     ${topicConstraint}
 
     INSTRUÇÕES DE PLANEJAMENTO:
-    1. Distribua APENAS os tópicos selecionados da lista acima ao longo das ${timeQuantity} ${timeUnit}.
+    1. Distribua os tópicos permitidos ao longo das ${timeQuantity} ${timeUnit}.
     2. Se a lista de tópicos for pequena, aprofunde neles. Se for grande, priorize o básico.
     3. Gere EXATAMENTE ${timeQuantity} itens no array.
     
