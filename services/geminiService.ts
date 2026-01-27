@@ -75,26 +75,34 @@ export const generateProblem = async (
 
     persona = "ATUE COMO UM MOTOR DE BUSCA ESPECIALIZADO EM PROVAS E CONCURSOS PÚBLICOS.";
     
+    // Extração rigorosa das bancas do contexto (Ex: "FILTRO DE BANCAS: [FGV, Cebraspe]")
     const contextUpper = contextInfo ? contextInfo.toUpperCase() : "";
-    const hasSpecificBoards = contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco") || contextInfo.includes("Objetivo"));
+    const bankMatch = contextInfo ? contextInfo.match(/FILTRO DE BANCAS: \[(.*?)\]/) : null;
+    const extractedBanks = bankMatch ? bankMatch[1] : ""; // Ex: "FGV, CEBRASPE"
+    
     const isCebraspe = contextUpper.includes("CEBRASPE") || contextUpper.includes("CESPE");
+    const hasSpecificBoards = !!extractedBanks || (contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco")));
     
     let boardInstruction = "";
+    let searchTerm = "";
     
     if (hasSpecificBoards) {
+        // Constrói termo de busca forçado
+        searchTerm = `Questão concurso ${topicName} ${extractedBanks} 2023 2024`;
+
         boardInstruction = `
-        PROTOCOLOS DE BUSCA (PRIORIDADE MÁXIMA):
-        1. CONTEXTO DO USUÁRIO (CRÍTICO): ${contextInfo}.
-        2. UTILIZE O GOOGLE SEARCH AGORA para encontrar uma questão REAL alinhada a este contexto (Banca/Edital).
-        3. Termo de busca sugerido: "Questão concurso [Assunto Específico] [Banca] [Ano Recente]".
+        PROTOCOLOS DE BUSCA RIGOROSOS (PRIORIDADE MÁXIMA):
+        1. O usuário definiu explicitamente as bancas: [${extractedBanks || contextInfo}].
+        2. UTILIZE O GOOGLE SEARCH AGORA com a query: "${searchTerm}".
+        3. Você DEVE selecionar uma questão APENAS destas bancas. Se não encontrar recente, busque anos anteriores (2020-2022), mas MANTENHA A BANCA.
         4. É ESTRITAMENTE PROIBIDO inventar a questão. Se o Search retornar uma questão real, use-a palavra por palavra.
         `;
 
         if (isCebraspe) {
           boardInstruction += `
           \nPROTOCOLO ESPECIAL CEBRASPE/CESPE:
-          - Ao buscar, verifique se a questão é do tipo "Certo/Errado" (Julgue o Item).
-          - SE a questão original encontrada for de "Certo ou Errado", o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
+          - Verifique se a questão encontrada é do tipo "Certo/Errado" (Julgue o Item).
+          - SE for Certo/Errado, o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
           - O campo "correctAnswer" deve ser "Certo" ou "Errado".
           `;
         }
@@ -106,14 +114,14 @@ export const generateProblem = async (
       ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM) VIA BUSCA.
       
       SUA MISSÃO:
-      1.  PESQUISE na web uma questão que caiu em prova recentemente (2022-2024).
+      1.  PESQUISE na web uma questão real seguindo o filtro de banca: ${extractedBanks || "Geral"}.
       2.  ${boardInstruction}
       3.  Tópico Alvo: ${topicName} > ${subSkillName}.
       4.  COPIE O ENUNCIADO EXATAMENTE como encontrado no resultado da busca.
       5.  COPIE AS ALTERNATIVAS EXATAMENTE como encontradas.
       
       REGRAS DE METADADOS:
-      - 'banca': Nome da banca encontrada na busca.
+      - 'banca': Nome da banca encontrada na busca (Ex: ${extractedBanks}).
       - 'source': Órgão, Cargo e Ano encontrados na busca.
     `;
 

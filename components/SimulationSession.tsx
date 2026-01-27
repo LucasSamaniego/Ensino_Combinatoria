@@ -106,7 +106,12 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
 
     setLoading(true);
     const topic = availableTopics[topicIdx];
-    setLoadStatus(`Preparando ciclo adaptativo: ${topic.name}...`);
+    
+    // Extract banks from context for better UX feedback
+    const activeBank = studyGoalContext?.match(/FILTRO DE BANCAS: \[(.*?)\]/)?.[1] || "";
+    const bankMsg = activeBank ? `(Banca: ${activeBank})` : "";
+    
+    setLoadStatus(`Pesquisando questão de ${topic.name} ${bankMsg}...`);
     
     const mastery = localSkills[topic.id]?.masteryProbability || 0.1;
     const adaptiveDifficulty = getDifficultyForMastery(mastery);
@@ -239,6 +244,11 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
         <h2 className="text-xl font-bold text-gray-800">{mode === 'interactive' ? 'Gerando Ciclo Adaptativo' : 'Criando Prova'}</h2>
         <p className="text-gray-500 mb-2 text-sm">{loadStatus}</p>
+        {loadStatus.includes("Banca") && (
+           <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 mt-2">
+             FILTRO DE BANCA ATIVO
+           </span>
+        )}
       </div>
     );
   }
