@@ -331,24 +331,33 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handleSimulationComplete = async (interactions: Interaction[]) => {
-    // 1. Consolida o progresso FINAL antes de sair
+    // 1. Consolida o progresso FINAL antes de sair. 
+    // Em modo weekly, o skill update é feito one-by-one (onUpdateSkill), então não re-aplicamos BKT aqui.
+    // Usamos o 'progress' atual que já deve ter as atualizações do BKT.
+    
     let currentProgress = { ...progress };
-
     let totalSimTime = 0;
 
     interactions.forEach(interaction => {
        totalSimTime += interaction.timeSpentSeconds;
-       if (subCategory !== 'weekly') { // Em modo weekly, o skill update é feito one-by-one
+       
+       if (subCategory !== 'weekly') { 
+         // Em modos NÃO-interativos, aplicamos o BKT em lote aqui
          const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
          const newHistory = [...currentProgress.history, interaction];
          currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
        }
     });
 
-    // 2. Update Study Plan Time (Batch)
-    const updatedPlans = updateStudyPlanTime(currentProgress, totalSimTime);
-    if (updatedPlans) {
-      currentProgress = { ...currentProgress, studyPlans: updatedPlans };
+    // 2. Update Study Plan Time (Batch correction if needed, or cumulative)
+    // No modo weekly, o tempo foi atualizado pergunta por pergunta. 
+    // Para evitar contagem dupla, adicionamos apenas o delta ou, para simplificar, confiamos no onUpdateSkill.
+    // MAS, para garantir consistência em falhas de rede, recalculamos aqui se não for weekly.
+    if (subCategory !== 'weekly') {
+        const updatedPlans = updateStudyPlanTime(currentProgress, totalSimTime);
+        if (updatedPlans) {
+          currentProgress = { ...currentProgress, studyPlans: updatedPlans };
+        }
     }
 
     // 3. Flashcards generation logic for weekly mode
@@ -359,8 +368,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
       const promises = Array.from(topicsPracticed).map(async (tId) => {
         const hasCards = newCards.some(c => c.topicId === tId);
         if (!hasCards) {
-          const generated = await generateFlashcards(tId);
-          return generated;
+          try {
+             const generated = await generateFlashcards(tId);
+             return generated;
+          } catch(e) {
+             return [];
+          }
         }
         return [];
       });

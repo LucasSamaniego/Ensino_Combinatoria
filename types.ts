@@ -148,6 +148,7 @@ export interface StudyPlan {
 
 export interface UserProgress {
   email?: string; // Add email for admin search
+  welcomeEmailSent?: boolean; // Flag para controlar envio do email de boas-vindas
   hasCompletedPlacement: boolean; 
   assignedCourses: string[]; // IDs dos cursos liberados pelo admin (ex: 'math', 'concursos')
   studyPlans: StudyPlan[]; // Lista de planos (Múltiplos planos permitidos)

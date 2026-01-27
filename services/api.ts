@@ -1,3 +1,4 @@
+
 import { Question, UserProgress, Interaction } from '../types';
 import { auth } from './firebase';
 
@@ -17,6 +18,42 @@ const getAuthHeaders = async () => {
 };
 
 export const api = {
+  // --- EMAILS & NOTIFICATIONS ---
+
+  /**
+   * Envia email de boas-vindas para novos alunos.
+   */
+  async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+    try {
+      const emailContent = `
+        Olá ${name}, bem-vindo à Plataforma de Estudos Adaptativa!
+        
+        Como funciona:
+        1. Teste de Nivelamento: Identificamos suas lacunas.
+        2. IA Generativa: Criamos exercícios personalizados.
+        3. Revisão Espaçada: Garantimos que você não esqueça o que aprendeu.
+        
+        Bons estudos!
+      `;
+
+      // Se houver backend configurado, envia a requisição real
+      if (process.env.VITE_API_URL) {
+        await fetch(`${API_BASE_URL}/email/welcome`, {
+          method: 'POST',
+          headers: await getAuthHeaders(),
+          body: JSON.stringify({ email, name, content: emailContent })
+        });
+      } else {
+        // Simulação para ambiente sem backend de email configurado
+        console.log(`[EMAIL MOCK] Enviando para ${email}:\n${emailContent}`);
+      }
+      return true;
+    } catch (error) {
+      console.error('API Error sending welcome email:', error);
+      return false;
+    }
+  },
+
   // --- QUESTÕES (MySQL) ---
   
   /**

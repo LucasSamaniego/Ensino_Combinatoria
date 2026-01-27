@@ -16,7 +16,8 @@ import {
   PlusCircle,
   FileText,
   CheckCircle2,
-  Trash2
+  Trash2,
+  Mail
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -27,6 +28,7 @@ import StudyPathTimeline from './components/StudyPathTimeline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { loadUserProgress, saveUserProgress, getEmptyProgress, getPendingPermissions, clearPendingPermission } from './services/storageService';
 import { UserProgress, StudyPlan } from './types';
+import { api } from './services/api';
 
 type ViewState = 'hub' | 'admin' | 'plan_setup' | 'subject_math' | 'subject_concursos' | 'module_active' | 'online_classroom';
 type Category = 'math' | 'concursos';
@@ -39,7 +41,9 @@ const MainApp: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
   const [weeklyStudyTopics, setWeeklyStudyTopics] = useState<string[]>([]);
   const [weeklyTheme, setWeeklyTheme] = useState<string>('');
-  // Permission verification state removed as access is now open
+  
+  // Notification State
+  const [showWelcomeToast, setShowWelcomeToast] = useState(false);
 
   // Efeito para carregar progresso APENAS quando o usuário muda/loga.
   useEffect(() => {
@@ -56,13 +60,25 @@ const MainApp: React.FC = () => {
         }
 
         // 2. CHECK PENDING PERMISSIONS (Admin Pre-Authorization)
-        // Kept for backward compatibility or future use, though access is open now.
         const pendingCourses = getPendingPermissions(user.email);
         if (pendingCourses) {
            const mergedCourses = Array.from(new Set([...progress.assignedCourses, ...pendingCourses]));
            progress = { ...progress, assignedCourses: mergedCourses };
            clearPendingPermission(user.email); 
            hasChanges = true;
+        }
+
+        // 3. WELCOME EMAIL TRIGGER (Novos Alunos)
+        // Se welcomeEmailSent for falso e o histórico estiver vazio (usuário novo), envia email.
+        if (progress.welcomeEmailSent === false && progress.history.length === 0) {
+           const emailSent = await api.sendWelcomeEmail(user.email, user.name);
+           if (emailSent) {
+             progress = { ...progress, welcomeEmailSent: true };
+             hasChanges = true;
+             setShowWelcomeToast(true);
+             // Remove o toast após 5 segundos
+             setTimeout(() => setShowWelcomeToast(false), 5000);
+           }
         }
 
         if (hasChanges) {
@@ -176,8 +192,22 @@ const MainApp: React.FC = () => {
   };
 
   const renderHub = () => (
-    <div className="max-w-6xl mx-auto px-4 py-12 animate-in fade-in duration-700">
+    <div className="max-w-6xl mx-auto px-4 py-12 animate-in fade-in duration-700 relative">
       
+      {/* Toast Notification for Welcome Email */}
+      {showWelcomeToast && (
+        <div className="fixed top-24 right-4 z-50 bg-indigo-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-right duration-500 max-w-sm border border-indigo-700">
+           <div className="bg-indigo-700 p-2 rounded-lg">
+              <Mail className="w-6 h-6 text-indigo-200" />
+           </div>
+           <div>
+              <h4 className="font-bold text-sm">Bem-vindo a bordo!</h4>
+              <p className="text-xs text-indigo-300 mt-1">Enviamos um email explicando como a plataforma funciona.</p>
+           </div>
+           <button onClick={() => setShowWelcomeToast(false)} className="text-indigo-400 hover:text-white"><CheckCircle2 className="w-5 h-5" /></button>
+        </div>
+      )}
+
       {isAdmin && (
         <div className="absolute top-4 right-4">
           <button 
@@ -378,6 +408,7 @@ const MainApp: React.FC = () => {
         {activePlanInThisCategory ? (
           <StudyPathTimeline 
             plan={activePlanInThisCategory} 
+            skills={userProgress?.skills || {}}
             onStartWeek={handleStartWeek} 
           />
         ) : (

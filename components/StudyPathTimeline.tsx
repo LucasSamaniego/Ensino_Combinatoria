@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { StudyPlan, StudyWeek } from '../types';
+import { StudyPlan, StudyWeek, SkillState } from '../types';
+import { TOPICS_DATA } from '../constants';
 import { Calendar, CheckCircle2, Circle, Clock, MapPin, Flag, Play, ChevronDown, ChevronUp, Lock, Download, FileDown, Hourglass, ArrowRight } from 'lucide-react';
 
 // Declare html2pdf on window
@@ -12,10 +13,11 @@ declare global {
 
 interface StudyPathTimelineProps {
   plan: StudyPlan;
+  skills: { [key: string]: SkillState };
   onStartWeek: (topics: string[], theme: string) => void;
 }
 
-const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek }) => {
+const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, skills, onStartWeek }) => {
   // Simulação de lógica temporal: calcula a semana atual baseada na data de criação
   const daysPassed = Math.floor((Date.now() - plan.createdAt) / (1000 * 60 * 60 * 24));
   const currentWeekIndex = Math.min(Math.floor(daysPassed / 7), plan.generatedSchedule.length - 1);
@@ -64,6 +66,31 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
     const h = Math.floor(minutes / 60);
     const m = Math.floor(minutes % 60);
     return `${h}h ${m}m`;
+  };
+
+  // Helper to get proficiency for a topic name
+  const getTopicProficiency = (topicName: string): number => {
+    // 1. Try exact match by name in TOPICS_DATA
+    let foundTopic = TOPICS_DATA.find(t => t.name === topicName);
+    
+    // 2. Try partial match if not found (AI might slightly alter the name)
+    if (!foundTopic) {
+      foundTopic = TOPICS_DATA.find(t => topicName.includes(t.name) || t.name.includes(topicName));
+    }
+
+    if (foundTopic && skills[foundTopic.id]) {
+      return Math.round(skills[foundTopic.id].masteryProbability * 100);
+    }
+    
+    // Default or unknown topic
+    return 0;
+  };
+
+  const getProficiencyColor = (score: number) => {
+    if (score >= 85) return 'bg-green-100 text-green-700 border-green-200';
+    if (score >= 60) return 'bg-blue-100 text-blue-700 border-blue-200';
+    if (score >= 40) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    return 'bg-slate-100 text-slate-500 border-slate-200';
   };
 
   return (
@@ -212,14 +239,22 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                     {/* Detalhes (Expandido) */}
                     {isExpanded && (
                       <div className="px-5 pb-5 pt-2 border-t border-slate-100/50 animate-in slide-in-from-top-2">
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">Tópicos Prioritários</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">Tópicos Prioritários & Proficiência</p>
                         <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {week.topicsToStudy.map((topic, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${status === 'active' ? 'bg-indigo-500' : 'bg-slate-400'}`}></div>
-                              {topic}
-                            </li>
-                          ))}
+                          {week.topicsToStudy.map((topic, i) => {
+                            const mastery = getTopicProficiency(topic);
+                            return (
+                              <li key={i} className="flex items-center justify-between text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${status === 'active' ? 'bg-indigo-500' : 'bg-slate-400'}`}></div>
+                                  <span>{topic}</span>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getProficiencyColor(mastery)}`}>
+                                  {mastery}%
+                                </span>
+                              </li>
+                            );
+                          })}
                         </ul>
 
                         {/* Alteração: Botão de estudo disponível para TODAS as semanas */}

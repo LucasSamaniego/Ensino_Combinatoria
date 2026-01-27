@@ -137,7 +137,10 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
         studyGoalContext // Contexto crucial (Edital/Bancas) para o Search
       );
       
-      setQuestions(prev => [...prev, q]);
+      // CRITICAL FIX: Ensure the question has the correct topicId for BKT tracking
+      const questionWithCorrectTopic = { ...q, topicId: topic.id };
+
+      setQuestions(prev => [...prev, questionWithCorrectTopic]);
       setLoading(false);
       setFeedback(null);
       setCurrentAnswer('');
@@ -153,12 +156,18 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     if (!currentAnswer) return;
     
     const currentQ = questions[currentIndex];
-    const isCorrect = currentAnswer === currentQ.correctAnswer || currentAnswer.toLowerCase() === currentQ.correctAnswer.toLowerCase();
+    
+    // Robust comparison
+    const normUser = currentAnswer.trim().toLowerCase();
+    const normCorrect = currentQ.correctAnswer.trim().toLowerCase();
+    const isCorrect = normUser === normCorrect || normUser.replace('.',',') === normCorrect.replace('.',',');
     
     setFeedback(isCorrect ? 'correct' : 'incorrect');
     
-    // Update Stats
-    const tId = currentQ.topicId || 'unknown';
+    // Update Stats using the FORCED topic ID (to ensure it maps to the weekly plan)
+    // We use availableTopics[currentTopicIdx].id because currentQ.topicId might be generic if AI failed
+    const tId = availableTopics[currentTopicIdx]?.id || currentQ.topicId || 'unknown';
+    
     setSessionStats(prev => ({
       ...prev,
       [tId]: {
@@ -171,17 +180,18 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     const interaction: Interaction = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
-      topicId: (currentQ.topicId || 'intro_counting') as TopicId,
+      topicId: tId as TopicId,
       subSkillId: 'weekly_cycle',
       isCorrect: isCorrect,
-      timeSpentSeconds: 30, 
+      timeSpentSeconds: 30, // Estimativa fixa para Interactive Mode para simplificar
       difficulty: currentQ.difficulty
     };
 
-    // Update Local Skills
+    // Update Local Skills (Visual Feedback)
     const updatedSkills = updateHierarchicalKnowledge(localSkills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
     setLocalSkills(updatedSkills);
 
+    // Trigger parent update (Persist to DB immediately)
     if (onUpdateSkill) onUpdateSkill(interaction);
 
     const newAnswers = [...userAnswers];
@@ -224,15 +234,18 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   };
 
   const handleExit = () => {
+     // Reconstruct interactions for final report if needed
      const interactions: Interaction[] = questions.map((q, idx) => {
-      const isCorrect = userAnswers[idx] === q.correctAnswer;
+      const uAns = userAnswers[idx] || "";
+      const isCorrect = uAns.toLowerCase() === q.correctAnswer.toLowerCase();
+      
       return {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         topicId: (q.topicId || 'intro_counting') as TopicId,
         subSkillId: 'simulation',
         isCorrect: isCorrect,
-        timeSpentSeconds: timeElapsed / questions.length,
+        timeSpentSeconds: timeElapsed / (questions.length || 1),
         difficulty: q.difficulty 
       };
     });
@@ -349,7 +362,13 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
 
   // --- 3. SUMMARY PHASE ---
   if (phase === 'summary') {
-    const score = questions.reduce((acc, q, idx) => acc + (q.correctAnswer === userAnswers[idx] ? 1 : 0), 0);
+    // Robust Score Calculation: Case insensitive check
+    const score = questions.reduce((acc, q, idx) => {
+        const u = userAnswers[idx] ? userAnswers[idx].trim().toLowerCase() : "";
+        const c = q.correctAnswer ? q.correctAnswer.trim().toLowerCase() : "";
+        return acc + (u === c ? 1 : 0);
+    }, 0);
+
     const isInteractive = mode === 'interactive';
     
     return (
@@ -376,7 +395,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tempo Total</div>
               </div>
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                 <div className="text-3xl font-black text-emerald-500">{Math.round((score/questions.length)*100)}%</div>
+                 <div className="text-3xl font-black text-emerald-500">{questions.length > 0 ? Math.round((score/questions.length)*100) : 0}%</div>
                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Acurácia</div>
               </div>
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -417,7 +436,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                  let feedbackText = "";
                  if (delta > 5) feedbackText = "Excelente salto qualitativo! Absorção rápida dos conceitos.";
                  else if (delta > 0) feedbackText = "Crescimento consistente. Continue revisando para fixar.";
-                 else if (topicScore < 50) feedbackText = "Detectamos dificuldades. Flashcards extras foram gerados.";
+                 else if (topicScore < 50 && stats.total > 0) feedbackText = "Detectamos dificuldades. Flashcards extras foram gerados.";
+                 else if (stats.total === 0) feedbackText = "Tópico não abordado neste ciclo.";
                  else feedbackText = "Desempenho estável. Pronto para desafios maiores.";
 
                  return (
@@ -608,7 +628,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                  <h4 className="font-bold text-gray-800 text-sm mb-4">Progresso no Tópico</h4>
                  <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
-                    <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${(localSkills[topicId(currentQ)]?.masteryProbability || 0.1) * 100}%` }}></div>
+                    <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${(localSkills[availableTopics[currentTopicIdx]?.id]?.masteryProbability || 0.1) * 100}%` }}></div>
                  </div>
                  <p className="text-xs text-gray-500">Nível estimado pela IA.</p>
               </div>

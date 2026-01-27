@@ -39,6 +39,7 @@ export const getEmptyProgress = (): UserProgress => {
 
   return { 
     hasCompletedPlacement: false,
+    welcomeEmailSent: false, // Inicializa como falso para novos usuários
     assignedCourses: [], // Por padrão, nenhum curso atribuído até o admin liberar
     skills, 
     history: [],
@@ -56,6 +57,10 @@ const migrateData = (data: any): UserProgress => {
 
   if (!data.assignedCourses) data.assignedCourses = [];
   if (!data.favorites) data.favorites = [];
+  // Se for usuário antigo (com histórico) mas sem a flag, assume que já recebeu ou não precisa
+  if (data.welcomeEmailSent === undefined) {
+     data.welcomeEmailSent = data.history && data.history.length > 0;
+  }
 
   if (!data.studyPlans) {
     data.studyPlans = [];
