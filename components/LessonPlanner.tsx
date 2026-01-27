@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Loader2, BookOpen, Send } from 'lucide-react';
@@ -7,9 +8,16 @@ const LessonPlanner: React.FC = () => {
   const [topic, setTopic] = useState('');
   const [lesson, setLesson] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lastGeneratedTopic, setLastGeneratedTopic] = useState('');
 
   const generateLesson = async () => {
     if (!topic) return;
+    
+    // Optimization: Don't regenerate if topic hasn't changed
+    if (topic === lastGeneratedTopic && lesson) {
+      return;
+    }
+
     setLoading(true);
     // Use process.env.API_KEY as per Google GenAI guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -18,7 +26,6 @@ const LessonPlanner: React.FC = () => {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `
-          Atue como um professor de matemática PhD. 
           Gere um roteiro de aula para o tópico: "${topic}".
           Estrutura:
           1. Gancho inicial (Exemplo do dia a dia).
@@ -27,9 +34,13 @@ const LessonPlanner: React.FC = () => {
           4. Desafio "Provocativo" para os alunos.
           Use português do Brasil e tom inspirador.
         `,
+        config: {
+          systemInstruction: "Atue como um professor de matemática PhD. Seja didático e breve."
+        }
       });
       // Garantir que não passamos undefined para o estado que espera string | null
       setLesson(response.text || "Não foi possível gerar o conteúdo da aula.");
+      setLastGeneratedTopic(topic);
     } catch (e) {
       setLesson("Erro ao gerar roteiro. Verifique se a API_KEY está configurada.");
     } finally {

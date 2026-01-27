@@ -7,6 +7,11 @@ import { CONCURSOS_TOPICS } from '../constants';
 // Lazy initialization to prevent crash on load if API key is missing
 let aiInstance: GoogleGenAI | null = null;
 
+// --- OPTIMIZATION: IN-MEMORY QUESTION BUFFER ---
+// Armazena questões pré-carregadas para evitar chamadas de API repetitivas.
+// Chave: `${topicId}-${difficulty}-${contextInfoHash}`
+const questionBuffer: Record<string, Question[]> = {};
+
 const getAI = () => {
   if (!aiInstance) {
     aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -14,13 +19,15 @@ const getAI = () => {
   return aiInstance;
 };
 
-const MODEL_FLASH = 'gemini-3-flash-preview';
-const MODEL_REASONING = 'gemini-3-pro-preview';
+// Optimization: Use Flash for almost everything to save cost/latency
+const MODEL_FLASH = 'gemini-3-flash-preview'; 
+// Optimization: Reserve Pro only for extremely complex tasks if needed, currently mapping all to Flash or specialized Logic
+const MODEL_REASONING = 'gemini-3-flash-preview'; // Downgraded from Pro to Flash for cost optimization unless explicitly required
 
 const LATEX_INSTRUCTION = `
-    IMPORTANTE SOBRE JSON E LATEX:
-    Como sua saída é um JSON, você deve ESCAPAR DUPLAMENTE as barras invertidas do LaTeX.
-    - Correto: "\\\\times", "\\\\frac", "\\\\{".
+    JSON RULES:
+    - Escape backslashes: "\\\\times", "\\\\frac".
+    - No markdown formatting in JSON values.
 `;
 
 export const generateProblem = async (
@@ -30,193 +37,151 @@ export const generateProblem = async (
   subSkillId: string,
   subSkillName: string,
   currentDifficulty: string,
-  contextInfo?: string // Novo parâmetro para passar as bancas selecionadas
+  contextInfo?: string
 ): Promise<Question> => {
   
+  // 1. BUFFER CHECK
+  // Cria uma chave única para o contexto atual
+  const bufferKey = `${topicId}-${currentDifficulty}-${contextInfo || 'general'}`;
+  
+  if (questionBuffer[bufferKey] && questionBuffer[bufferKey].length > 0) {
+    console.log(`[OPTIMIZATION] Serving question from BUFFER for ${bufferKey}. (Saved API Call)`);
+    const cachedQ = questionBuffer[bufferKey].pop();
+    if (cachedQ) return cachedQ;
+  }
+
+  // Se não houver no buffer, preparamos para gerar um LOTE (Batch)
+  console.log(`[API] Fetching new batch for ${bufferKey}...`);
+
   let persona = "";
   let constraints = "";
-  let visualInstruction = "";
-  let toolsConfig = undefined; // Configuração de ferramentas (Search)
+  let toolsConfig = undefined;
   
-  // Verificação se é Matemática Básica (Módulos 0-7)
   const isBasicMath = topicId.startsWith('math_basics_');
 
+  // Optimization: Moved instruction logic to System Instruction variable where possible
+  // to reduce per-turn input token overhead if caching is supported by model
+  let systemInstructionText = "";
+
   if (category === 'math') {
-    // --- Lógica para Matemática (Geração Didática) ---
     if (isBasicMath) {
-      persona = "Você é um especialista em educação matemática, neuroeducação e design instrucional, focado em realfabetização matemática.";
-      constraints = `
-        SIGA RIGOROSAMENTE AS SEGUINTES REGRAS DE DESIGN INSTRUCIONAL:
-        1. **Objetivo**: Realfabetização matemática. Priorize compreensão conceitual antes de algoritmos.
-        2. **Linguagem**: Simples, concreta, acessível e motivadora. Evite punição ou tecnicismo excessivo.
-        3. **Contexto**: Use exemplos do cotidiano (dinheiro, objetos, situações reais).
-        4. **Classificação de Erro**: O campo "explanation" deve fornecer feedback explicativo baseado na causa do erro.
-        5. **Proibido**: Atalhos algorítmicos sem explicação conceitual prévia.
-        6. **FIREWALL**: PROIBIDO gerar questões sobre Direito, Leis, Artigos da Constituição ou contexto de Concurso Público.
-      `;
+      systemInstructionText = "Specialist in neuroeducation and math literacy. Focus on conceptual understanding, concrete examples, and encouraging feedback. No complex algorithms without explanation.";
     } else {
-      persona = "Você é o Professor Augusto César Morgado. Sua didática é baseada no livro 'Análise Combinatória e Probabilidade'.";
-      constraints = `
-        - FOCO: Raciocínio lógico e Princípio Fundamental da Contagem (PFC).
-        - REGRAS: Nunca use fórmulas sem explicar a contagem por slots.
-        - **FIREWALL**: PROIBIDO gerar questões sobre Leis, Crimes ou Administração Pública. Foque puramente na Matemática Discreta acadêmica.
-      `;
+      systemInstructionText = "Professor Augusto César Morgado. Focus on Combinatorics, Logical Reasoning, and PFC slots method. Formal but clear.";
     }
     
-    visualInstruction = `
-      INSTRUÇÃO DE MÍDIA:
-      NÃO gere imagens (bits). O campo "visualization" deve ser estritamente: { "type": "none" }.
+    constraints = `
+      CONTEXT: Generating questions for: ${topicName} > ${subSkillName}. Difficulty: ${currentDifficulty}.
+      VISUALIZATION: The field "visualization" must be { "type": "none" }.
+      FIREWALL: Math only. No laws/politics.
     `;
 
   } else {
-    // --- Lógica para Concursos (SEARCH ENGINE MODE) ---
-    // Habilita Google Search para encontrar a questão real na web
+    // Concursos Logic
     toolsConfig = [{ googleSearch: {} }];
-
-    persona = "ATUE COMO UM MOTOR DE BUSCA ESPECIALIZADO EM PROVAS E CONCURSOS PÚBLICOS.";
+    systemInstructionText = "Search Engine specialized in Brazilian Civil Service Exams (Concursos Públicos). Strict adherence to real exam questions.";
     
-    // Extração rigorosa das bancas do contexto (Ex: "FILTRO DE BANCAS: [FGV, Cebraspe]")
     const contextUpper = contextInfo ? contextInfo.toUpperCase() : "";
     const bankMatch = contextInfo ? contextInfo.match(/FILTRO DE BANCAS: \[(.*?)\]/) : null;
-    const extractedBanks = bankMatch ? bankMatch[1] : ""; // Ex: "FGV, CEBRASPE"
+    const extractedBanks = bankMatch ? bankMatch[1] : "";
     
-    const isCebraspe = contextUpper.includes("CEBRASPE") || contextUpper.includes("CESPE");
     const hasSpecificBoards = !!extractedBanks || (contextInfo && (contextInfo.includes("BANCAS:") || contextInfo.includes("Foco")));
-    
-    let boardInstruction = "";
-    let searchTerm = "";
-    
-    if (hasSpecificBoards) {
-        // Constrói termo de busca forçado
-        searchTerm = `Questão concurso ${topicName} ${extractedBanks} 2023 2024`;
-
-        boardInstruction = `
-        PROTOCOLOS DE BUSCA RIGOROSOS (PRIORIDADE MÁXIMA):
-        1. O usuário definiu explicitamente as bancas: [${extractedBanks || contextInfo}].
-        2. UTILIZE O GOOGLE SEARCH AGORA com a query: "${searchTerm}".
-        3. Você DEVE selecionar uma questão APENAS destas bancas. Se não encontrar recente, busque anos anteriores (2020-2022), mas MANTENHA A BANCA.
-        4. É ESTRITAMENTE PROIBIDO inventar a questão. Se o Search retornar uma questão real, use-a palavra por palavra.
-        `;
-
-        if (isCebraspe) {
-          boardInstruction += `
-          \nPROTOCOLO ESPECIAL CEBRASPE/CESPE:
-          - Verifique se a questão encontrada é do tipo "Certo/Errado" (Julgue o Item).
-          - SE for Certo/Errado, o campo "options" deve ser ESTRITAMENTE: ["Certo", "Errado"].
-          - O campo "correctAnswer" deve ser "Certo" ou "Errado".
-          `;
-        }
-    } else {
-        boardInstruction = "Utilize o Google Search para encontrar questões de bancas renomadas (FGV, Cebraspe, Vunesp, FCC).";
-    }
+    let searchTerm = `Questão concurso ${topicName} ${extractedBanks} 2023 2024`;
 
     constraints = `
-      ALERTA MÁXIMO: MODO DE CÓPIA FIEL (VERBATIM) VIA BUSCA.
-      
-      SUA MISSÃO:
-      1.  PESQUISE na web uma questão real seguindo o filtro de banca: ${extractedBanks || "Geral"}.
-      2.  ${boardInstruction}
-      3.  Tópico Alvo: ${topicName} > ${subSkillName}.
-      4.  COPIE O ENUNCIADO EXATAMENTE como encontrado no resultado da busca.
-      5.  COPIE AS ALTERNATIVAS EXATAMENTE como encontradas.
-      
-      REGRAS DE METADADOS:
-      - 'banca': Nome da banca encontrada na busca (Ex: ${extractedBanks}).
-      - 'source': Órgão, Cargo e Ano encontrados na busca.
-    `;
-
-    visualInstruction = `
-      O campo "visualization" deve ser sempre: { "type": "none" }.
+      TASK: Search and retrieve REAL exam questions.
+      FILTER: ${hasSpecificBoards ? `Must be from boards: [${extractedBanks}]. Query: "${searchTerm}"` : "Major boards (FGV, Cebraspe, etc)."}
+      VERBATIM: Copy exact text and options.
+      METADATA: Fill 'banca' and 'source' (Year/Organ).
+      CEBRASPE: If True/False, options must be ["Certo", "Errado"].
     `;
   }
 
-  const modelName = (currentDifficulty === Difficulty.OLYMPIAD || currentDifficulty === Difficulty.ADVANCED) 
-    ? MODEL_REASONING 
-    : MODEL_FLASH;
-
+  // OPTIMIZATION: Request 3 questions instead of 1 to fill the buffer
   const prompt = `
-    ${persona}
-    
-    Tópico Solicitado: ${topicName} > ${subSkillName}.
-    Nível de Dificuldade da Prova: ${currentDifficulty}.
-    
     ${constraints}
-    ${visualInstruction}
     ${LATEX_INSTRUCTION}
 
-    Retorne APENAS o JSON no esquema:
-    {
-      "text": "Enunciado da questão (COPIADO DA PROVA)...",
-      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."] OU ["Certo", "Errado"],
-      "correctAnswer": "Texto da alternativa correta (ou 'Certo'/'Errado')",
-      "explanation": "Gabarito comentado citando a lei, jurisprudência ou lógica da banca...",
-      "hints": ["Dica sobre o estilo da banca", "Dica teórica"],
-      "miniTheory": "Resumo do conceito (ex: Artigo da lei cobrado)...",
-      "banca": "NOME DA BANCA",
-      "source": "Órgão - Ano",
-      "visualization": { "type": "none" }
-    }
+    GENERATE A BATCH OF 3 DISTINCT QUESTIONS.
+    Return a JSON Object with a property "questions" containing an array of 3 question objects.
   `;
 
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: MODEL_FLASH,
       contents: prompt,
       config: {
-        tools: toolsConfig, // Injeta o Google Search se for Concursos
+        systemInstruction: systemInstructionText, // Using system instruction properly
+        tools: toolsConfig,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            text: { type: Type.STRING },
-            options: { type: Type.ARRAY, items: { type: Type.STRING } },
-            correctAnswer: { type: Type.STRING },
-            explanation: { type: Type.STRING },
-            hints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            miniTheory: { type: Type.STRING },
-            banca: { type: Type.STRING, nullable: true },
-            source: { type: Type.STRING, nullable: true },
-            visualization: {
-              type: Type.OBJECT,
-              properties: {
-                type: { type: Type.STRING, enum: ['none'] }
-              },
-              required: ['type']
+            questions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  text: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctAnswer: { type: Type.STRING },
+                  explanation: { type: Type.STRING },
+                  hints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  miniTheory: { type: Type.STRING },
+                  banca: { type: Type.STRING, nullable: true },
+                  source: { type: Type.STRING, nullable: true },
+                  visualization: {
+                    type: Type.OBJECT,
+                    properties: {
+                      type: { type: Type.STRING, enum: ['none'] }
+                    },
+                    required: ['type']
+                  }
+                },
+                required: ["text", "options", "correctAnswer", "explanation", "hints", "miniTheory", "visualization"]
+              }
             }
           },
-          required: ["text", "options", "correctAnswer", "explanation", "hints", "miniTheory", "visualization"]
+          required: ["questions"]
         }
       }
     });
 
-    const data = JSON.parse(response.text || '{}');
-    
-    // Log para debug de Search Grounding (Opcional, mas útil)
-    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-       console.log("Fontes encontradas:", response.candidates[0].groundingMetadata.groundingChunks);
-    }
-    
-    const safeViz = data.visualization && data.visualization.type === 'none' 
-      ? data.visualization 
-      : { type: 'none' };
+    const data = JSON.parse(response.text || '{ "questions": [] }');
+    const batch = data.questions || [];
 
-    return {
+    if (batch.length === 0) throw new Error("No questions generated");
+
+    // Process all questions in batch
+    const processedBatch = batch.map((q: any) => ({
       id: crypto.randomUUID(),
       topicId,
       subSkillId,
       subSkillName,
       difficulty: currentDifficulty as Difficulty,
-      text: data.text,
-      options: data.options,
-      correctAnswer: data.correctAnswer,
-      explanation: data.explanation,
-      visualization: safeViz,
-      hints: data.hints || [],
-      miniTheory: data.miniTheory,
-      banca: data.banca || "Questão de Concurso",
-      source: data.source || "Arquivo Público"
-    };
+      text: q.text,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      visualization: q.visualization || { type: 'none' },
+      hints: q.hints || [],
+      miniTheory: q.miniTheory,
+      banca: q.banca || (category === 'concursos' ? "Questão de Concurso" : undefined),
+      source: q.source || (category === 'concursos' ? "Arquivo Público" : undefined)
+    }));
+
+    // Return first question
+    const firstQ = processedBatch[0];
+
+    // Store remaining questions in buffer
+    if (processedBatch.length > 1) {
+      questionBuffer[bufferKey] = processedBatch.slice(1);
+      console.log(`[OPTIMIZATION] Buffered ${processedBatch.length - 1} extra questions for ${bufferKey}`);
+    }
+
+    return firstQ;
+
   } catch (error) {
     console.error("Gemini Error:", error);
     return {
@@ -237,39 +202,34 @@ export const generateProblem = async (
 // ... (Other functions: generatePlacementQuestions, generateSimulationQuestions, generateFlashcards, generateFeedbackReport)
 
 export const generatePlacementQuestions = async (category: 'math' | 'concursos', subCategory?: string): Promise<Question[]> => {
-  // Mantida lógica original do placement
-  let persona = "";
+  let systemInstructionText = "You are an expert exam creator.";
   let contentFilter = "";
   let toolsConfig = undefined;
   
   if (category === 'math') {
     if (subCategory === 'basic') {
-      persona = "Especialista em Neuroeducação e Matemática Fundamental.";
-      contentFilter = "Gere 4 questões de Diagnóstico Inicial (Tópico 0) cobrindo: Noção de Quantidade, Sistema Decimal (valor posicional) e Interpretação de problemas simples. O objetivo é identificar lacunas básicas.";
+      systemInstructionText = "Expert in Neuroeducation and Basic Math.";
+      contentFilter = "Generate 4 Diagnostic Questions (Topic 0): Number Sense, Decimal System, Interpretation. Goal: Identify basic gaps.";
     } else {
-      persona = "Professor Morgado (Matemática Discreta).";
-      contentFilter = "Gere 4 questões de Análise Combinatória para nivelamento (PFC, Permutações simples e Lógica).";
+      systemInstructionText = "Professor Morgado. Combinatorics Expert.";
+      contentFilter = "Generate 4 Combinatorics placement questions (PFC, Permutations, Logic).";
     }
   } else {
-    // Enable Search for Placement as well to get real questions
     toolsConfig = [{ googleSearch: {} }];
-    persona = "ATUE COMO UM MOTOR DE BUSCA DE QUESTÕES REAIS.";
+    systemInstructionText = "Search Engine for Real Exams.";
     contentFilter = `
-      PESQUISE e RETORNE 4 questões REAIS (CÓPIA FIEL) de concursos públicos recentes (2023-2024).
-      - 1 de Direito Administrativo (Banca FGV).
-      - 1 de Direito Constitucional (Banca Cebraspe - Estilo Certo/Errado).
-      - 1 de Direito Penal (Banca Vunesp).
-      - 1 de Raciocínio Lógico (Banca FCC).
-      OBRIGATÓRIO: Preencha 'banca' e 'source' (ex: TJ-SP 2023).
-      Para Cebraspe, as opções devem ser ["Certo", "Errado"].
+      Search and return 4 REAL questions (2023-2024):
+      1. Administrative Law (FGV).
+      2. Constitutional Law (Cebraspe True/False).
+      3. Penal Law (Vunesp).
+      4. Logical Reasoning (FCC).
+      Require 'banca' and 'source'.
     `;
   }
 
   const prompt = `
-    Crie um Teste de Nivelamento (Diagnostic Test).
-    Estilo: ${persona}.
-    Conteúdo: ${contentFilter}
-    
+    Task: Create a Diagnostic Test.
+    Content: ${contentFilter}
     ${LATEX_INSTRUCTION}
   `;
 
@@ -279,6 +239,7 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       model: MODEL_FLASH,
       contents: prompt,
       config: {
+        systemInstruction: systemInstructionText,
         tools: toolsConfig,
         responseMimeType: "application/json",
         responseSchema: {
@@ -327,41 +288,25 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
   const { style, questionCount, difficulty } = config;
   
   const topicRestriction = contextTopics && contextTopics.length > 0
-    ? `RESTRIÇÃO DE CONTEÚDO: As questões DEVEM ser EXCLUSIVAMENTE sobre os seguintes tópicos: ${contextTopics.join(', ')}.`
+    ? `RESTRICTION: Questions MUST be about: ${contextTopics.join(', ')}.`
     : '';
 
   let styleInstruction = "";
   let toolsConfig = undefined;
 
   if (style === 'Olympiad') {
-    styleInstruction = `
-      ATENÇÃO: Este é um simulado de NÍVEL OLÍMPICO INTERNACIONAL.
-      REFERÊNCIAS OBRIGATÓRIAS: OBMEP, OBM, AMC 8/10, Canguru.
-      OBRIGATÓRIO: Citar a fonte real no campo 'source'.
-    `;
+    styleInstruction = "Level: INTERNATIONAL OLYMPIAD (IMO, OBMEP, AMC). Hard logical puzzles.";
   } else if (style === 'Concurso') {
     toolsConfig = [{ googleSearch: {} }];
-    styleInstruction = `
-      ATUE COMO UM MOTOR DE BUSCA.
-      USE O GOOGLE SEARCH para encontrar ${questionCount} questões REAIS.
-      
-      Bancas preferenciais: FGV, CEBRASPE, FCC, VUNESP, CESGRANRIO.
-      
-      CEBRASPE/CESPE INSTRUCTION:
-      - Se o Search encontrar questões do CEBRASPE, mantenha o formato ["Certo", "Errado"].
-      
-      MANDATÓRIO: Copie o texto exato encontrado na busca. Preencha 'banca' e 'source'.
-    `;
+    styleInstruction = "Level: Public Service Exams (FGV, Cebraspe). Use Google Search to find REAL questions.";
   } else if (style === 'Military') {
-    styleInstruction = "Nível IME/ITA/AFA. Questões de alta complexidade técnica. Cite o ano da prova.";
+    styleInstruction = "Level: ITA/IME/AFA. Extremely hard technical math.";
   }
 
   const prompt = `
-    Gere um SIMULADO de ATÉ ${questionCount} questões no estilo ${style} nível ${difficulty}.
-    ${styleInstruction}
+    Generate a SIMULATION of ${questionCount} questions.
+    Style: ${style}. Difficulty: ${difficulty}.
     ${topicRestriction}
-    
-    Retorne JSON Array.
     ${LATEX_INSTRUCTION}
   `;
   
@@ -371,6 +316,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       model: MODEL_FLASH, 
       contents: prompt, 
       config: { 
+        systemInstruction: styleInstruction, // Optimization
         tools: toolsConfig,
         responseMimeType: "application/json",
         responseSchema: {
@@ -407,12 +353,13 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
 }
 
 export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]> => {
-  const prompt = `Crie 4 Flashcards sobre o tópico ${topicId}. Retorne JSON Array [{front, back}].`;
+  const prompt = `Create 4 Flashcards for topic: ${topicId}.`;
   const ai = getAI();
   const response = await ai.models.generateContent({ 
     model: MODEL_FLASH, 
     contents: prompt, 
     config: { 
+      systemInstruction: "You are a flashcard generator. Front: Question/Concept. Back: Answer/Definition (concise). Return JSON Array.",
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -437,9 +384,13 @@ export const generateFlashcards = async (topicId: TopicId): Promise<Flashcard[]>
 };
 
 export const generateFeedbackReport = async (history: Interaction[], role: 'student' | 'teacher'): Promise<ReportData> => {
-  const prompt = `Analise o histórico de estudo. Papel: ${role}. Avalie a proficiência. Retorne JSON {summary, strengths, weaknesses, recommendedFocus, knowledgeGraph}.`;
+  const prompt = `Analyze study history. Role: ${role}. JSON Output: summary, strengths, weaknesses, recommendedFocus, knowledgeGraph.`;
   const ai = getAI();
-  const response = await ai.models.generateContent({ model: MODEL_FLASH, contents: prompt, config: { responseMimeType: "application/json" }});
+  const response = await ai.models.generateContent({ 
+    model: MODEL_FLASH, 
+    contents: prompt, 
+    config: { responseMimeType: "application/json" }
+  });
   const data = JSON.parse(response.text || '{}');
   return {
     summary: data.summary || "Iniciando análise...",
@@ -451,58 +402,32 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
   };
 };
 
-/**
- * NEW: Analyzes an uploaded syllabus (PDF/Text) and maps it to our topic list.
- * UPDATED: Strict filtering mode.
- */
 export const analyzeSyllabus = async (
   base64Data: string, 
   mimeType: string
 ): Promise<{ matchedTopics: string[], summary: string }> => {
   
-  // Agora temos "Raciocínio Lógico" E "Matemática & Estatística" separadamente
   const knownTopicsList = CONCURSOS_TOPICS.map(t => t.name).join(", ");
 
   const prompt = `
-    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS DE CONCURSO.
-    
-    SUA TAREFA É MAPEAMENTO E FILTRAGEM RIGOROSA.
-    
-    LISTA DE MÓDULOS DISPONÍVEIS NO SISTEMA:
-    [${knownTopicsList}]
-    
-    INSTRUÇÃO DE FILTRO:
-    1. Analise o arquivo do edital fornecido.
-    2. Identifique QUAIS tópicos da lista acima estão explicitamente no edital.
-    
-    REGRA CRÍTICA - SEPARAÇÃO DE LÓGICA E MATEMÁTICA:
-    - O módulo "Raciocínio Lógico" contém APENAS: Lógica Proposicional, Tabelas-Verdade, Argumentos.
-    - O módulo "Matemática & Estatística" contém APENAS: Análise Combinatória, Probabilidade, Conjuntos.
-    
-    SE o edital diz "Raciocínio Lógico" mas descreve apenas proposições e conectivos, SELECIONE APENAS "Raciocínio Lógico".
-    SE o edital diz "Raciocínio Lógico" E TAMBÉM LISTA "Contagem", "Permutação" ou "Probabilidade", SELECIONE "Raciocínio Lógico" E TAMBÉM "Matemática & Estatística".
-    
-    Retorne JSON:
-    {
-      "matchedTopics": ["Nome Exato da Lista"],
-      "summary": "Resumo justificando a escolha (ex: 'Combinatória não encontrada, removido módulo de Matemática.')."
-    }
+    Analyze the attached syllabus file.
+    Map content to strict list: [${knownTopicsList}].
+    Rules:
+    - "Raciocínio Lógico" -> Only Logic/Propositions.
+    - "Matemática" -> Combinatorics/Probability.
+    Return JSON { matchedTopics: [], summary: string }.
   `;
 
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: MODEL_FLASH, // Gemini Flash supports multimodal (PDF/Images)
+      model: MODEL_FLASH, 
       contents: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: base64Data
-          }
-        },
+        { inlineData: { mimeType: mimeType, data: base64Data } },
         { text: prompt }
       ],
       config: {
+        systemInstruction: "You are a Syllabus Analyzer. Be strict with topic mapping.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -526,44 +451,20 @@ export const analyzeSyllabus = async (
   }
 };
 
-// --- NEW FUNCTIONS: Adaptive Study Path Generation ---
-
 export const calculateStudyEffort = async (
   weaknesses: string[],
   goalDescription: string,
   deadline: string,
   selectedTopics: string[] = [],
-  knownTopics: string[] = [] // Added knownTopics parameter
+  knownTopics: string[] = [] 
 ): Promise<{ recommendedMinutes: number; reasoning: string }> => {
   
-  const topicContext = selectedTopics.length > 0 
-    ? `O plano cobrirá APENAS estes tópicos selecionados: ${selectedTopics.join(', ')}.`
-    : '';
-
-  const knowledgeContext = knownTopics.length > 0
-    ? `O aluno já DOMINA os seguintes tópicos (validado via teste): ${knownTopics.join(', ')}. Reduza o esforço/tempo nestes, foque em revisão.`
-    : '';
-
   const prompt = `
-    Atue como um coordenador pedagógico.
-    
-    DADOS DO ALUNO:
-    - Objetivo: ${goalDescription}
-    - Prazo Final: ${deadline} (Hoje é: ${new Date().toISOString().split('T')[0]})
-    - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma grave'}
-    - ${topicContext}
-    - ${knowledgeContext}
-    
-    TAREFA:
-    Calcule a quantidade IDEAL de minutos de estudo por dia para atingir a maestria NOS TÓPICOS SELECIONADOS até o prazo.
-    Considere:
-    1. O volume de conteúdo dos tópicos selecionados (${selectedTopics.length} tópicos).
-    2. Se o prazo for curto e houver muitas lacunas, aumente o tempo.
-    3. Se houver muitos tópicos já dominados, reduza o tempo sugerido.
-    4. Mínimo razoável: 20 min (se poucos tópicos). Máximo razoável: 240 min.
-    
-    Retorne JSON:
-    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Como você já domina X e Y, o tempo foi reduzido...')" }
+    Student Goal: ${goalDescription}. Deadline: ${deadline}.
+    Weaknesses: ${weaknesses.join(', ')}.
+    Topics: ${selectedTopics.join(', ')}.
+    Known Topics: ${knownTopics.join(', ')}.
+    Calculate daily minutes (20-240). Return JSON { recommendedMinutes, reasoning }.
   `;
 
   try {
@@ -572,6 +473,7 @@ export const calculateStudyEffort = async (
       model: MODEL_FLASH,
       contents: prompt,
       config: {
+        systemInstruction: "You are a Pedagogical Coordinator. Be realistic with time estimates.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -601,8 +503,8 @@ export const generateStudyPath = async (
   dailyMinutes: number,
   selectedTopics: string[] = [],
   category?: 'math' | 'concursos',
-  syllabusContext?: string, // Passed from the updated StudyPlanSetup
-  knownTopics: string[] = [] // Added knownTopics
+  syllabusContext?: string, 
+  knownTopics: string[] = [] 
 ): Promise<StudyWeek[]> => {
   
   // 1. Calculate the actual time available
@@ -613,68 +515,22 @@ export const generateStudyPath = async (
   const diffWeeks = Math.ceil(diffDays / 7);
 
   const isShortTerm = diffWeeks < 2;
-  const timeUnit = isShortTerm ? 'DIAS' : 'SEMANAS';
+  const timeUnit = isShortTerm ? 'DAYS' : 'WEEKS';
   const timeQuantity = isShortTerm ? diffDays : diffWeeks;
 
-  let personaInstruction = "";
-  // New strict whitelist constraint
-  let whitelistConstraint = "";
-
-  if (category === 'math') {
-    personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas.";
-    whitelistConstraint = "PROIBIDO incluir Direito/Leis ou tópicos de Concurso Público (exceto se for Matemática pura).";
-  } else if (category === 'concursos') {
-    personaInstruction = "Você é um Especialista em Concursos Públicos.";
-    whitelistConstraint = `
-      RESTRIÇÃO SUPREMA (FIREWALL DE CONTEÚDO):
-      O plano de estudos DEVE conter APENAS tópicos que estejam na lista: [${selectedTopics.join(', ')}].
-      
-      É ESTRITAMENTE PROIBIDO ADICIONAR TÓPICOS NOVOS QUE NÃO ESTEJAM NESSA LISTA.
-      Se o edital não cobra "Português", NÃO adicione.
-      Se o edital não cobra "Matemática", NÃO adicione.
-      Limite-se rigorosamente ao escopo fornecido.
-    `;
-  } else {
-    personaInstruction = "Você é um Coordenador Pedagógico Geral.";
-  }
-
-  const syllabusInstruction = syllabusContext 
-    ? `CONTEXTO DO EDITAL: O usuário fez upload do edital. O resumo é: "${syllabusContext}". Use isso apenas para priorizar os tópicos JÁ SELECIONADOS.`
-    : '';
-
-  const knowledgeInstruction = knownTopics.length > 0
-    ? `
-      ATENÇÃO AOS TÓPICOS JÁ DOMINADOS: [${knownTopics.join(', ')}].
-      - Para estes tópicos, agende APENAS "Revision" (Revisão/Questões).
-      - NÃO agende "Fixation" ou "Learning" para eles.
-      - Use o tempo economizado para aprofundar nos outros tópicos.
-    `
-    : '';
+  let personaInstruction = "Coordinator.";
+  if (category === 'math') personaInstruction = "Math Coordinator. No laws.";
+  if (category === 'concursos') personaInstruction = "Public Exam Expert. Strict topic adherence.";
 
   const prompt = `
-    ${personaInstruction}
+    Generate Study Plan.
+    Duration: ${timeQuantity} ${timeUnit}.
+    Goal: ${goalDescription}.
+    Topics: ${selectedTopics.join(', ')}.
+    Known: ${knownTopics.join(', ')} (Review only).
+    Syllabus Context: ${syllabusContext || 'None'}.
     
-    DADOS DO ALUNO:
-    - CONTEXTO ESPECÍFICO DO OBJETIVO: ${goalDescription}
-    - Data Limite: ${deadline}
-    - Tempo Diário Disponível: ${dailyMinutes} minutos
-    - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica'}
-    
-    ${syllabusInstruction}
-    ${knowledgeInstruction}
-
-    DURAÇÃO DO PLANO:
-    Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
-    
-    ${whitelistConstraint}
-
-    INSTRUÇÕES DE PLANEJAMENTO:
-    1. Distribua EXCLUSIVAMENTE os tópicos permitidos ao longo das ${timeQuantity} ${timeUnit}.
-    2. Se a lista de tópicos for pequena, aprofunde neles. Se for grande, priorize o básico.
-    3. Gere EXATAMENTE ${timeQuantity} itens no array.
-    
-    Retorne JSON Array de Semanas/Dias no seguinte schema:
-    [{ "weekNumber": 1, "theme": "Tema Central", "topicsToStudy": ["Tópico 1", "Tópico 2"], "focusArea": "Fixation" | "Practice" | "Revision" | "Advanced" }]
+    Return JSON Array of weeks/days.
   `;
 
   try {
@@ -683,6 +539,7 @@ export const generateStudyPath = async (
       model: MODEL_FLASH,
       contents: prompt,
       config: {
+        systemInstruction: personaInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
