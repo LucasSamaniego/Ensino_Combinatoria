@@ -147,6 +147,7 @@ export interface StudyPlan {
 }
 
 export interface UserProgress {
+  email?: string; // Add email for admin search
   hasCompletedPlacement: boolean; 
   assignedCourses: string[]; // IDs dos cursos liberados pelo admin (ex: 'math', 'concursos')
   studyPlans: StudyPlan[]; // Lista de planos (Múltiplos planos permitidos)

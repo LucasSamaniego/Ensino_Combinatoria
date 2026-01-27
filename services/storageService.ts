@@ -125,3 +125,35 @@ export const loadUserProgress = async (userId: string): Promise<UserProgress> =>
 
   return getEmptyProgress();
 };
+
+/**
+ * NEW: Encontra o ID do usuário através do email (para Admin).
+ * Varre o LocalStorage em busca de um objeto que contenha o e-mail correspondente.
+ */
+export const findUserIdByEmail = async (email: string): Promise<string | null> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  // 1. Tenta API se disponível (Mocked for now in api.ts as likely unavailable in simple backend)
+  // ...
+
+  // 2. Varredura LocalStorage (Modo Demo/Local)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (data.email && data.email.toLowerCase() === normalizedEmail) {
+            // Remove o prefixo para retornar apenas o UID
+            return key.replace(STORAGE_PREFIX, '');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Erro na busca local por email:", e);
+  }
+
+  return null;
+};

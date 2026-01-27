@@ -38,12 +38,20 @@ const MainApp: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
   const [weeklyStudyTopics, setWeeklyStudyTopics] = useState<string[]>([]);
   const [weeklyTheme, setWeeklyTheme] = useState<string>('');
+  const [verifyingPermission, setVerifyingPermission] = useState(false);
 
   // Efeito para carregar progresso APENAS quando o usuário muda/loga.
   useEffect(() => {
     const init = async () => {
       if (user) {
-        const progress = await loadUserProgress(user.uid);
+        let progress = await loadUserProgress(user.uid);
+        
+        // AUTO-CORRECTION: Save email to progress if missing, to allow Admin Search by Email
+        if (progress.email !== user.email) {
+          progress = { ...progress, email: user.email };
+          await saveUserProgress(user.uid, progress);
+        }
+
         setUserProgress(progress);
       }
     };
@@ -73,9 +81,15 @@ const MainApp: React.FC = () => {
   };
 
   const handleProgressUpdate = async (newProgress: UserProgress) => {
-    setUserProgress(newProgress);
+    // Ensure email is always preserved/updated
+    const progressWithEmail = { 
+      ...newProgress, 
+      email: user?.email || newProgress.email 
+    };
+    
+    setUserProgress(progressWithEmail);
     if (user) {
-      await saveUserProgress(user.uid, newProgress);
+      await saveUserProgress(user.uid, progressWithEmail);
     }
   };
 
@@ -99,19 +113,36 @@ const MainApp: React.FC = () => {
 
   const activePlan = userProgress?.studyPlans.find(p => p.id === userProgress.activePlanId);
 
-  const enterModule = (cat: Category, sub?: string) => {
-    // 1. Verifica permissão (assignedCourses)
-    const allowed = userProgress?.assignedCourses.includes(cat);
+  const enterModule = async (cat: Category, sub?: string) => {
+    if (!user) return;
+
+    // 1. UPDATE CRÍTICO: Recarrega dados do servidor antes de verificar permissão
+    // Isso garante que se o Admin acabou de liberar, o aluno consegue entrar sem F5.
+    setVerifyingPermission(true);
+    let currentData = userProgress;
+    
+    try {
+      const freshProgress = await loadUserProgress(user.uid);
+      setUserProgress(freshProgress); // Atualiza estado local
+      currentData = freshProgress;
+    } catch (e) {
+      console.warn("Falha ao atualizar permissões online, usando cache local.");
+    } finally {
+      setVerifyingPermission(false);
+    }
+
+    // 2. Verifica permissão no objeto atualizado
+    const allowed = currentData?.assignedCourses.includes(cat);
     
     if (!allowed && !isAdmin) { 
-      alert("Este curso ainda não foi liberado para você. Contate o administrador.");
+      alert(`O acesso ao curso de ${cat === 'math' ? 'Exatas' : 'Concursos'} ainda não foi liberado. Contate o administrador.`);
       return;
     }
 
     setActiveCategory(cat);
     setActiveSubCategory(sub);
 
-    // 2. Se for módulo de conteúdo (não dashboard geral), entra direto
+    // 3. Se for módulo de conteúdo (não dashboard geral), entra direto
     if (sub) {
       setCurrentView('module_active');
     } else {
@@ -147,7 +178,8 @@ const MainApp: React.FC = () => {
         {/* Matemática */}
         <button 
           onClick={() => enterModule('math')}
-          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-indigo-200 transition-all duration-500 text-left overflow-hidden"
+          disabled={verifyingPermission}
+          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-indigo-200 transition-all duration-500 text-left overflow-hidden disabled:opacity-70"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
              <Calculator className="w-40 h-40 text-indigo-600" />
@@ -173,7 +205,8 @@ const MainApp: React.FC = () => {
         {/* Concursos Públicos */}
         <button 
           onClick={() => enterModule('concursos')}
-          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-emerald-200 transition-all duration-500 text-left overflow-hidden"
+          disabled={verifyingPermission}
+          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-emerald-200 transition-all duration-500 text-left overflow-hidden disabled:opacity-70"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
              <Gavel className="w-40 h-40 text-emerald-600" />
