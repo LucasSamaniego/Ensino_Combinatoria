@@ -167,10 +167,11 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
        difficulty: Difficulty.INTERMEDIATE 
      };
      
+     // Robust Mapping: If exact topic not found, create a custom topic object to ensure AI generation works
      const topicsObjects = (weeklyTopics || []).map((tName, i) => {
         const found = currentTopics.find(ct => ct.name === tName);
         return {
-           id: found ? found.id : `week_topic_${i}` as TopicId,
+           id: found ? found.id : `custom_weekly_${i}_${Date.now()}` as TopicId,
            name: tName
         };
      });

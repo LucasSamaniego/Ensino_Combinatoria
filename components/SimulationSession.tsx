@@ -37,7 +37,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   // Modes: 'test' (Classic Simulation) vs 'interactive' (Weekly Study)
   const mode = config.id === 'weekly_auto' ? 'interactive' : 'test';
 
-  const [phase, setPhase] = useState<SessionPhase>(mode === 'interactive' ? 'intro' : 'active');
+  // UPDATED: Start 'interactive' (weekly) mode directly in 'active' phase to give direct access
+  const [phase, setPhase] = useState<SessionPhase>(mode === 'interactive' ? 'active' : 'intro');
   const [initialSkills] = useState<{ [key: string]: SkillState }>(JSON.parse(JSON.stringify(userSkills || {})));
   
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -82,6 +83,13 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     }
   }, [mode, phase]);
 
+  // UPDATED: Auto-start for Interactive Mode (Weekly) if starting in active phase
+  useEffect(() => {
+    if (mode === 'interactive' && phase === 'active' && questions.length === 0 && !loading) {
+      loadNextInteractiveQuestion(0);
+    }
+  }, [mode, phase]);
+
   // Timer Effect
   useEffect(() => {
     let interval: any;
@@ -95,7 +103,10 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
 
   const startInteractiveSession = async () => {
     setPhase('active');
-    await loadNextInteractiveQuestion(0);
+    // Logic moved to useEffect for auto-start, but kept here for intro button click fallback
+    if (questions.length === 0) {
+      await loadNextInteractiveQuestion(0);
+    }
   };
 
   const loadNextInteractiveQuestion = async (topicIdx: number) => {
