@@ -445,6 +445,7 @@ export const generateFeedbackReport = async (history: Interaction[], role: 'stud
 
 /**
  * NEW: Analyzes an uploaded syllabus (PDF/Text) and maps it to our topic list.
+ * UPDATED: Strict filtering mode.
  */
 export const analyzeSyllabus = async (
   base64Data: string, 
@@ -454,18 +455,21 @@ export const analyzeSyllabus = async (
   const knownTopicsList = CONCURSOS_TOPICS.map(t => t.name).join(", ");
 
   const prompt = `
-    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS DE CONCURSO.
+    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS.
+    
+    LISTA DE MÓDULOS DISPONÍVEIS NO SISTEMA:
+    [${knownTopicsList}]
     
     TAREFA:
-    1. Analise o arquivo do edital fornecido (pode ser PDF ou Imagem).
-    2. Identifique os tópicos cobrados que correspondem à nossa lista de matérias disponíveis: [${knownTopicsList}].
-    3. Retorne uma lista APENAS com os nomes exatos da nossa lista que foram encontrados no edital.
-    4. Gere um breve resumo (3 linhas) sobre o foco do edital (ex: "Foco pesado em legislação especial e atos administrativos").
+    1. Analise o arquivo do edital fornecido.
+    2. Identifique QUAIS tópicos da lista acima estão explicitamente no edital.
+    3. Retorne APENAS os nomes exatos da lista que foram encontrados.
+    4. Ignore qualquer tópico do edital que não tenha correspondência direta na nossa lista.
     
     Retorne JSON:
     {
       "matchedTopics": ["Tópico A", "Tópico B"],
-      "summary": "Resumo da análise..."
+      "summary": "Resumo focado apenas nos tópicos encontrados..."
     }
   `;
 
@@ -498,7 +502,7 @@ export const analyzeSyllabus = async (
     const data = JSON.parse(response.text || '{}');
     return {
       matchedTopics: data.matchedTopics || [],
-      summary: data.summary || "Edital analisado, mas nenhum tópico padrão foi identificado com certeza."
+      summary: data.summary || "Edital analisado."
     };
   } catch (error) {
     console.error("Error analyzing syllabus:", error);
@@ -589,35 +593,29 @@ export const generateStudyPath = async (
   const timeQuantity = isShortTerm ? diffDays : diffWeeks;
 
   let personaInstruction = "";
+  // New strict whitelist constraint
   let whitelistConstraint = "";
 
   if (category === 'math') {
     personaInstruction = "Você é um Coordenador Pedagógico de Matemática e Exatas.";
     whitelistConstraint = "PROIBIDO incluir Direito/Leis ou tópicos de Concurso Público (exceto se for Matemática pura).";
   } else if (category === 'concursos') {
-    personaInstruction = "Você é um Especialista em Concursos Públicos. Foque estritamente nas seguintes disciplinas: Direito Administrativo, Direito Constitucional, Direito Penal, Direito Processual Penal, Raciocínio Lógico e Informática.";
+    personaInstruction = "Você é um Especialista em Concursos Públicos.";
     whitelistConstraint = `
-      RESTRIÇÃO SUPREMA DE ESCOPO:
-      O plano DEVE conter APENAS tópicos destas 6 áreas:
-      1. Direito Administrativo
-      2. Direito Constitucional
-      3. Direito Penal
-      4. Direito Processual Penal
-      5. Raciocínio Lógico
-      6. Informática
+      RESTRIÇÃO SUPREMA (FIREWALL DE CONTEÚDO):
+      O plano de estudos DEVE conter APENAS tópicos que estejam na lista: [${selectedTopics.join(', ')}].
       
-      NÃO adicione Português, Matemática Básica (Escolar) ou outras leis extravagantes que não se encaixem nessas categorias.
+      É ESTRITAMENTE PROIBIDO ADICIONAR TÓPICOS NOVOS QUE NÃO ESTEJAM NESSA LISTA.
+      Se o edital não cobra "Português", NÃO adicione.
+      Se o edital não cobra "Matemática", NÃO adicione.
+      Limite-se rigorosamente ao escopo fornecido.
     `;
   } else {
     personaInstruction = "Você é um Coordenador Pedagógico Geral.";
   }
 
-  const topicConstraint = selectedTopics.length > 0
-    ? `RESTRIÇÃO DE ESCOPO DO USUÁRIO: Além das restrições acima, dê prioridade TOTAL aos tópicos selecionados pelo usuário: [${selectedTopics.join(', ')}].`
-    : '';
-
   const syllabusInstruction = syllabusContext 
-    ? `CONTEXTO DO EDITAL (MUITO IMPORTANTE): O usuário fez upload do edital. O resumo da análise é: "${syllabusContext}". Use isso para priorizar o que realmente cai dentro das matérias permitidas.`
+    ? `CONTEXTO DO EDITAL: O usuário fez upload do edital. O resumo é: "${syllabusContext}". Use isso apenas para priorizar os tópicos JÁ SELECIONADOS.`
     : '';
 
   const prompt = `
@@ -635,10 +633,9 @@ export const generateStudyPath = async (
     Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
     
     ${whitelistConstraint}
-    ${topicConstraint}
 
     INSTRUÇÕES DE PLANEJAMENTO:
-    1. Distribua os tópicos permitidos ao longo das ${timeQuantity} ${timeUnit}.
+    1. Distribua EXCLUSIVAMENTE os tópicos permitidos ao longo das ${timeQuantity} ${timeUnit}.
     2. Se a lista de tópicos for pequena, aprofunde neles. Se for grande, priorize o básico.
     3. Gere EXATAMENTE ${timeQuantity} itens no array.
     

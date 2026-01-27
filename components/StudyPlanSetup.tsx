@@ -107,10 +107,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
           const analysis = await analyzeSyllabus(base64Data, file.type);
           
           if (analysis.matchedTopics.length > 0) {
-             setSelectedTopics(analysis.matchedTopics);
+             setSelectedTopics(analysis.matchedTopics); // Set strict matching
              setSyllabusSummary(analysis.summary);
           } else {
-             setSyllabusSummary("Nenhum tópico padrão identificado, mas o contexto será usado.");
+             setSyllabusSummary("Nenhum tópico correspondente encontrado. O plano será genérico.");
           }
           setIsAnalyzingSyllabus(false);
         };
@@ -189,13 +189,13 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       getFullGoalDescription(), 
       deadline, 
       chosenMinutes,
-      selectedTopics,
-      category, // Pass category to enforce strict module boundaries
-      syllabusSummary // Pass extracted syllabus context
+      selectedTopics, // STRICT FILTER PASSED HERE
+      category, 
+      syllabusSummary 
     );
 
     const newPlan: StudyPlan = {
-      id: crypto.randomUUID(), // New unique ID for the plan
+      id: crypto.randomUUID(), 
       title: planTitle || 'Novo Plano',
       category: category, 
       goal: getFullGoalDescription(),
@@ -308,7 +308,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
                <div>
                  <h4 className="font-bold text-indigo-900">Análise Automática de Edital (IA)</h4>
                  <p className="text-xs text-indigo-600 mt-1 max-w-xs mx-auto">
-                   Arraste o PDF do edital aqui ou clique para selecionar. A IA extrairá os tópicos e configurará seu plano.
+                   Arraste o PDF do edital aqui. A IA filtrará estritamente os assuntos válidos.
                  </p>
                </div>
                {syllabusFile && !isAnalyzingSyllabus && (
@@ -412,12 +412,12 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
               <Layers className="w-5 h-5 text-indigo-500" /> Seleção de Tópicos
             </h3>
             <p className="text-sm text-slate-500">
-              {syllabusFile ? "Tópicos pré-selecionados com base no Edital enviado." : "Personalize seu escopo manualmente."}
+              {syllabusFile ? "Tópicos restritos ao que foi encontrado no Edital." : "Personalize seu escopo manualmente."}
             </p>
           </div>
           {syllabusFile && (
              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded border border-emerald-200 flex items-center gap-1">
-               <Zap className="w-3 h-3" /> IA Ativada
+               <Zap className="w-3 h-3" /> Filtro Ativo
              </span>
           )}
         </div>
