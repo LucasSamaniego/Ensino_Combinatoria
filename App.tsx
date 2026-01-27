@@ -39,7 +39,7 @@ const MainApp: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
   const [weeklyStudyTopics, setWeeklyStudyTopics] = useState<string[]>([]);
   const [weeklyTheme, setWeeklyTheme] = useState<string>('');
-  const [verifyingPermission, setVerifyingPermission] = useState(false);
+  // Permission verification state removed as access is now open
 
   // Efeito para carregar progresso APENAS quando o usuário muda/loga.
   useEffect(() => {
@@ -56,13 +56,13 @@ const MainApp: React.FC = () => {
         }
 
         // 2. CHECK PENDING PERMISSIONS (Admin Pre-Authorization)
+        // Kept for backward compatibility or future use, though access is open now.
         const pendingCourses = getPendingPermissions(user.email);
         if (pendingCourses) {
            const mergedCourses = Array.from(new Set([...progress.assignedCourses, ...pendingCourses]));
            progress = { ...progress, assignedCourses: mergedCourses };
-           clearPendingPermission(user.email); // Consome a permissão pendente
+           clearPendingPermission(user.email); 
            hasChanges = true;
-           console.log("Permissões pendentes aplicadas:", mergedCourses);
         }
 
         if (hasChanges) {
@@ -162,29 +162,8 @@ const MainApp: React.FC = () => {
   const enterModule = async (cat: Category, sub?: string) => {
     if (!user) return;
 
-    // 1. UPDATE CRÍTICO: Recarrega dados do servidor antes de verificar permissão
-    // Isso garante que se o Admin acabou de liberar, o aluno consegue entrar sem F5.
-    setVerifyingPermission(true);
-    let currentData = userProgress;
+    // Access is now unrestricted. No permission check.
     
-    try {
-      const freshProgress = await loadUserProgress(user.uid);
-      setUserProgress(freshProgress); // Atualiza estado local
-      currentData = freshProgress;
-    } catch (e) {
-      console.warn("Falha ao atualizar permissões online, usando cache local.");
-    } finally {
-      setVerifyingPermission(false);
-    }
-
-    // 2. Verifica permissão no objeto atualizado
-    const allowed = currentData?.assignedCourses.includes(cat);
-    
-    if (!allowed && !isAdmin) { 
-      alert(`O acesso ao curso de ${cat === 'math' ? 'Exatas' : 'Concursos'} ainda não foi liberado. Contate o administrador.`);
-      return;
-    }
-
     setActiveCategory(cat);
     setActiveSubCategory(sub);
 
@@ -224,8 +203,7 @@ const MainApp: React.FC = () => {
         {/* Matemática */}
         <button 
           onClick={() => enterModule('math')}
-          disabled={verifyingPermission}
-          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-indigo-200 transition-all duration-500 text-left overflow-hidden disabled:opacity-70"
+          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-indigo-200 transition-all duration-500 text-left overflow-hidden"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
              <Calculator className="w-40 h-40 text-indigo-600" />
@@ -236,14 +214,10 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Ciências Exatas</h3>
             <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-               {(userProgress?.assignedCourses.includes('math') || isAdmin) ? 'Curso Liberado' : 'Aguardando Liberação'}
+               Acesso Completo
             </p>
-            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${(userProgress?.assignedCourses.includes('math') || isAdmin) ? 'text-indigo-600' : 'text-slate-400'}`}>
-              {(userProgress?.assignedCourses.includes('math') || isAdmin) ? (
-                <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
-              ) : (
-                <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
-              )}
+            <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-indigo-600">
+              Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
             </span>
           </div>
         </button>
@@ -251,8 +225,7 @@ const MainApp: React.FC = () => {
         {/* Concursos Públicos */}
         <button 
           onClick={() => enterModule('concursos')}
-          disabled={verifyingPermission}
-          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-emerald-200 transition-all duration-500 text-left overflow-hidden disabled:opacity-70"
+          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-emerald-200 transition-all duration-500 text-left overflow-hidden"
         >
           <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
              <Gavel className="w-40 h-40 text-emerald-600" />
@@ -263,14 +236,10 @@ const MainApp: React.FC = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">Concursos Públicos</h3>
             <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-               {(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? 'Curso Liberado' : 'Aguardando Liberação'}
+               Acesso Completo
             </p>
-            <span className={`inline-flex items-center text-xs font-black uppercase tracking-widest ${(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? 'text-emerald-600' : 'text-slate-400'}`}>
-              {(userProgress?.assignedCourses.includes('concursos') || isAdmin) ? (
-                <>Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
-              ) : (
-                <><Lock className="w-3 h-3 mr-1" /> Bloqueado</>
-              )}
+            <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-emerald-600">
+              Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
             </span>
           </div>
         </button>
