@@ -138,20 +138,23 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   }, [user, category, subCategory, initialProgress]);
 
   const handleViewRouting = (data: UserProgress) => {
+    // 1. PRIORIDADE MÁXIMA: Acesso Direto Semanal (Timeline)
+    // Se o usuário clicou na linha do tempo, ignoramos o status de nivelamento para permitir o estudo.
+    if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
+      startWeeklySession();
+      return;
+    }
+
+    // 2. Fluxo Normal de Onboarding
     if (!data.hasCompletedPlacement) {
       setView('placement_intro');
       return;
     }
 
-    // Se tem placement mas nao tem nenhum plano, manda pro setup
+    // 3. Se tem placement mas não tem nenhum plano, manda pro setup
     if (data.hasCompletedPlacement && data.studyPlans.length === 0) {
        setView('plan_setup_internal');
        return;
-    }
-
-    if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
-      startWeeklySession();
-      return;
     }
 
     setView('dashboard');
