@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   PlusCircle,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -93,6 +94,27 @@ const MainApp: React.FC = () => {
       const updated = { ...userProgress, activePlanId: planId };
       setUserProgress(updated);
       await saveUserProgress(user.uid, updated);
+    }
+  };
+
+  const handleDeletePlan = async (planId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Impede a seleção do plano ao clicar na lixeira
+    if (!user || !userProgress) return;
+
+    if (window.confirm("Tem certeza que deseja excluir este plano de estudos? Esta ação não pode ser desfeita.")) {
+      const updatedPlans = userProgress.studyPlans.filter(p => p.id !== planId);
+      
+      // Se o plano deletado era o ativo, reseta o activePlanId
+      const isActive = userProgress.activePlanId === planId;
+      
+      const updatedProgress = {
+        ...userProgress,
+        studyPlans: updatedPlans,
+        activePlanId: isActive ? undefined : userProgress.activePlanId
+      };
+
+      setUserProgress(updatedProgress);
+      await saveUserProgress(user.uid, updatedProgress);
     }
   };
 
@@ -346,7 +368,7 @@ const MainApp: React.FC = () => {
                  <div 
                    key={plan.id}
                    onClick={() => handleSelectPlan(plan.id)}
-                   className={`flex-shrink-0 w-72 p-5 rounded-2xl border-2 cursor-pointer transition-all relative ${
+                   className={`flex-shrink-0 w-72 p-5 rounded-2xl border-2 cursor-pointer transition-all relative group ${
                      isActive 
                        ? (isMath ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl transform scale-[1.02]' : 'bg-emerald-600 border-emerald-600 text-white shadow-xl transform scale-[1.02]') 
                        : 'bg-white border-slate-200 hover:border-slate-300'
@@ -354,13 +376,26 @@ const MainApp: React.FC = () => {
                  >
                     {isActive && <div className="absolute -top-3 -right-3 bg-white text-slate-900 rounded-full p-1 shadow-md border"><CheckCircle2 className="w-5 h-5 text-green-500" /></div>}
                     
+                    {/* Botão de Excluir (Lixeira) */}
+                    <button 
+                      onClick={(e) => handleDeletePlan(plan.id, e)}
+                      className={`absolute top-3 right-3 p-1.5 rounded-full transition-colors z-10 ${
+                        isActive 
+                          ? 'text-white/60 hover:text-white hover:bg-white/20' 
+                          : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                      }`}
+                      title="Excluir Plano"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
                     <div className="flex items-center gap-2 mb-2">
                        <FileText className={`w-4 h-4 ${isActive ? 'text-white/70' : 'text-slate-400'}`} />
                        <span className={`text-[10px] font-bold uppercase tracking-widest ${isActive ? 'text-white/70' : 'text-slate-400'}`}>
                          {new Date(plan.createdAt).toLocaleDateString()}
                        </span>
                     </div>
-                    <h4 className={`font-bold text-lg leading-tight mb-4 ${isActive ? 'text-white' : 'text-slate-800'}`}>{plan.title}</h4>
+                    <h4 className={`font-bold text-lg leading-tight mb-4 pr-6 ${isActive ? 'text-white' : 'text-slate-800'}`}>{plan.title}</h4>
                     <div className={`text-xs ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
                        Meta: {new Date(plan.deadline).toLocaleDateString()}
                     </div>

@@ -215,18 +215,8 @@ export const CONCURSOS_TOPICS = [
       { id: 'tabela_verdade', name: 'Tabelas-Verdade e Equivalências', parentId: TopicId.RACIOCINIO_LOGICO },
       { id: 'diagramas_logicos', name: 'Diagramas Lógicos e Argumentos', parentId: TopicId.RACIOCINIO_LOGICO }
     ]
-  },
-  // SEPARAÇÃO: Matemática para Concursos (Quantitativo)
-  {
-    id: TopicId.MATEMATICA_CONCURSOS,
-    name: 'Matemática & Estatística',
-    description: 'Análise Combinatória, Probabilidade e Conjuntos.',
-    subSkills: [
-      { id: 'analise_combinatoria_rl', name: 'Análise Combinatória', parentId: TopicId.MATEMATICA_CONCURSOS },
-      { id: 'probabilidade_concurso', name: 'Probabilidade', parentId: TopicId.MATEMATICA_CONCURSOS },
-      { id: 'conjuntos_numericos', name: 'Teoria dos Conjuntos', parentId: TopicId.MATEMATICA_CONCURSOS }
-    ]
   }
+  // Módulo de Matemática & Estatística REMOVIDO conforme solicitado para o curso de Concursos
 ];
 
 export const TOPICS_DATA = [...MATH_TOPICS, ...CONCURSOS_TOPICS];
