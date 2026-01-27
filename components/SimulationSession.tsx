@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { SimulationConfig, Question, Interaction, TopicId, SkillState, Difficulty } from '../types';
 import { generateSimulationQuestions, generateProblem } from '../services/geminiService';
 import { getDifficultyForMastery, updateHierarchicalKnowledge } from '../services/tracingService';
+import { translateDifficulty } from '../constants';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
 import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain, Briefcase, Play, Hourglass } from 'lucide-react';
@@ -358,7 +359,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                     <div className="flex justify-between items-center mb-3">
                        <div>
                           <h4 className="font-bold text-slate-800 text-base">{topic.name}</h4>
-                          <span className="text-xs text-slate-500 font-medium">Nível Detectado: <span className="uppercase">{difficulty}</span></span>
+                          <span className="text-xs text-slate-500 font-medium">Nível Detectado: <span className="uppercase">{translateDifficulty(difficulty)}</span></span>
                        </div>
                        <div className="text-right">
                           <span className="text-2xl font-black text-slate-700">{percent}%</span>
@@ -548,7 +549,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
                       currentQ.difficulty === Difficulty.BASIC ? 'bg-green-100 text-green-700' : 
                       currentQ.difficulty === Difficulty.INTERMEDIATE ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                     }`}>
-                      {currentQ.difficulty}
+                      {translateDifficulty(currentQ.difficulty)}
                     </span>
                     {onToggleFavorite && (
                       <button onClick={() => onToggleFavorite(currentQ)} className="text-gray-300 hover:text-yellow-400 transition-colors">
@@ -693,7 +694,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
               <div className="text-right">
                 <span className="block text-xs font-bold text-indigo-600">{config.style}</span>
                 <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold text-white uppercase ${currentQ.difficulty === Difficulty.BASIC ? 'bg-green-500' : currentQ.difficulty === Difficulty.INTERMEDIATE ? 'bg-blue-500' : 'bg-purple-500'}`}>
-                  {currentQ.difficulty}
+                  {translateDifficulty(currentQ.difficulty)}
                 </span>
               </div>
             </div>

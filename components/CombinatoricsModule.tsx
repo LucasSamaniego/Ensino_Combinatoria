@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   UserProgress, 
@@ -13,7 +14,9 @@ import {
   TOPICS_DATA, 
   BASIC_MATH_TOPICS, 
   COMBINATORICS_TOPICS, 
-  CONCURSOS_TOPICS 
+  CONCURSOS_TOPICS,
+  GENERAL_MATH_TOPICS,
+  PORTUGUESE_TOPICS // Import Portuguese topics
 } from '../constants';
 import { 
   updateHierarchicalKnowledge 
@@ -48,7 +51,7 @@ import {
 } from 'lucide-react';
 
 interface CombinatoricsModuleProps {
-  category: 'math' | 'concursos';
+  category: 'math' | 'concursos' | 'portuguese';
   subCategory?: string;
   weeklyTopics: string[];
   weeklyTheme: string;
@@ -78,9 +81,25 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   // Determine which topics to show based on category/subCategory
   const getTopics = () => {
     if (category === 'concursos') return CONCURSOS_TOPICS;
+    if (category === 'portuguese') return PORTUGUESE_TOPICS;
+    
+    // Matemática Filters
     if (subCategory === 'basic') return BASIC_MATH_TOPICS;
     if (subCategory === 'combinatorics') return COMBINATORICS_TOPICS;
-    return [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS];
+    
+    // Filtros para os novos módulos individuais de Matemática
+    if (subCategory === 'arithmetic') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.ARITHMETIC);
+    if (subCategory === 'algebra') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.ALGEBRA);
+    if (subCategory === 'geometry_flat') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.GEOMETRY_FLAT);
+    if (subCategory === 'geometry_spatial') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.GEOMETRY_SPATIAL);
+    if (subCategory === 'geometry_analytic') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.GEOMETRY_ANALYTIC);
+    if (subCategory === 'trigonometry') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.TRIGONOMETRY);
+    if (subCategory === 'calculus_1') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.CALCULUS_1);
+    if (subCategory === 'calculus_2') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.CALCULUS_2);
+    if (subCategory === 'calculus_3') return GENERAL_MATH_TOPICS.filter(t => t.id === TopicId.CALCULUS_3);
+
+    // Fallback: se nada específico for selecionado, retorna tudo
+    return [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS, ...GENERAL_MATH_TOPICS];
   };
 
   const topics = getTopics();
@@ -137,6 +156,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
            if (normalizedInput.includes("penal")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_PENAL);
            if (normalizedInput.includes("lógica") || normalizedInput.includes("logica")) found = TOPICS_DATA.find(ct => ct.id === TopicId.RACIOCINIO_LOGICO);
            if (normalizedInput.includes("combinatória")) found = TOPICS_DATA.find(ct => ct.id === TopicId.INTRO_COUNTING);
+           if (normalizedInput.includes("gramática") || normalizedInput.includes("sintaxe")) found = TOPICS_DATA.find(ct => ct.id === TopicId.PORT_GRAMMAR);
         }
 
         return {
@@ -271,7 +291,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
-  const studyContext = activePlan?.goal || (category === 'concursos' ? "Foco em Concursos Públicos e Bancas Variadas" : "Matemática Geral");
+  const studyContext = activePlan?.goal || (category === 'concursos' ? "Foco em Concursos Públicos e Bancas Variadas" : (category === 'portuguese' ? "Língua Portuguesa" : "Matemática Geral"));
 
   // --- RENDERING ---
 

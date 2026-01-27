@@ -77,7 +77,7 @@ export const generateProblem = async (
     `;
 
   } else {
-    // Concursos Logic
+    // Concursos Logic (Also covers Portuguese if categorized here)
     toolsConfig = [{ googleSearch: {} }];
     systemInstructionText = "Search Engine specialized in Brazilian Civil Service Exams (Concursos Públicos). Strict adherence to real exam questions.";
     
@@ -310,6 +310,13 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
     ${LATEX_INSTRUCTION}
   `;
   
+  const styleMap: Record<string, string> = {
+    'School': 'Escolar',
+    'Concurso': 'Concurso',
+    'Olympiad': 'Olimpíada',
+    'Military': 'Militar'
+  };
+
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({ 
@@ -342,7 +349,7 @@ export const generateSimulationQuestions = async (config: SimulationConfig, cont
       ...q,
       id: `sim-${Date.now()}-${index}`,
       subSkillId: 'simulation',
-      subSkillName: `${style} Simulation`,
+      subSkillName: `Simulado ${styleMap[style] || style}`,
       difficulty: difficulty,
       hints: [],
       miniTheory: ''
@@ -465,6 +472,7 @@ export const calculateStudyEffort = async (
     Topics: ${selectedTopics.join(', ')}.
     Known Topics: ${knownTopics.join(', ')}.
     Calculate daily minutes (20-240). Return JSON { recommendedMinutes, reasoning }.
+    IMPORTANT: The 'reasoning' field MUST BE IN PORTUGUESE (pt-BR).
   `;
 
   try {
@@ -473,7 +481,7 @@ export const calculateStudyEffort = async (
       model: MODEL_FLASH,
       contents: prompt,
       config: {
-        systemInstruction: "You are a Pedagogical Coordinator. Be realistic with time estimates.",
+        systemInstruction: "You are a Pedagogical Coordinator. Be realistic with time estimates. Output strictly in Portuguese.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -530,6 +538,13 @@ export const generateStudyPath = async (
     Known: ${knownTopics.join(', ')} (Review only).
     Syllabus Context: ${syllabusContext || 'None'}.
     
+    RICH CONTENT REQUIREMENT (MUST BE IN PORTUGUESE):
+    For each unit (week/day), provide:
+    - 'description': Instruction on HOW to study this topic (methodology). EXPLICITLY IN PORTUGUESE.
+    - 'readingResources': Array of 2 specific book chapters or articles. EXPLICITLY IN PORTUGUESE (e.g. "CF/88 Art. 5", "Morgado Cap. 2").
+    - 'videoSuggestions': Array of 2 specific search terms for video lessons. EXPLICITLY IN PORTUGUESE (e.g. "Permutação com Repetição Ferretto").
+    - 'practicalTips': One key tip. EXPLICITLY IN PORTUGUESE.
+
     Return JSON Array of weeks/days.
   `;
 
@@ -549,7 +564,11 @@ export const generateStudyPath = async (
               weekNumber: { type: Type.INTEGER },
               theme: { type: Type.STRING },
               topicsToStudy: { type: Type.ARRAY, items: { type: Type.STRING } },
-              focusArea: { type: Type.STRING, enum: ['Fixation', 'Practice', 'Revision', 'Advanced'] }
+              focusArea: { type: Type.STRING, enum: ['Fixation', 'Practice', 'Revision', 'Advanced'] },
+              description: { type: Type.STRING },
+              readingResources: { type: Type.ARRAY, items: { type: Type.STRING } },
+              videoSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+              practicalTips: { type: Type.STRING }
             },
             required: ['weekNumber', 'theme', 'topicsToStudy', 'focusArea']
           }

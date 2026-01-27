@@ -17,7 +17,16 @@ import {
   FileText,
   CheckCircle2,
   Trash2,
-  Mail
+  Mail,
+  Sigma,
+  Hash,
+  Triangle,
+  Box,
+  Crosshair,
+  Activity,
+  Infinity,
+  BookType, // Ícone para Português
+  Feather // Ícone alternativo para Português
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -30,8 +39,8 @@ import { loadUserProgress, saveUserProgress, getEmptyProgress, getPendingPermiss
 import { UserProgress, StudyPlan } from './types';
 import { api } from './services/api';
 
-type ViewState = 'hub' | 'admin' | 'plan_setup' | 'subject_math' | 'subject_concursos' | 'module_active' | 'online_classroom';
-type Category = 'math' | 'concursos';
+type ViewState = 'hub' | 'admin' | 'plan_setup' | 'subject_math' | 'subject_concursos' | 'subject_portuguese' | 'module_active' | 'online_classroom';
+type Category = 'math' | 'concursos' | 'portuguese';
 
 const MainApp: React.FC = () => {
   const { user, loading, signOut } = useAuth();
@@ -242,11 +251,33 @@ const MainApp: React.FC = () => {
             <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-indigo-600 shadow-inner">
               <Calculator className="w-7 h-7" />
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">Ciências Exatas</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Matemática</h3>
             <p className="text-slate-500 text-sm mb-8 leading-relaxed">
                Acesso Completo
             </p>
             <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-indigo-600">
+              Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            </span>
+          </div>
+        </button>
+
+        {/* Português (NOVO) */}
+        <button 
+          onClick={() => enterModule('portuguese')}
+          className="group relative bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-2xl hover:border-rose-200 transition-all duration-500 text-left overflow-hidden"
+        >
+          <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity">
+             <BookType className="w-40 h-40 text-rose-600" />
+          </div>
+          <div className="relative z-10">
+            <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-rose-600 shadow-inner">
+              <BookType className="w-7 h-7" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Português</h3>
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+               Acesso Completo
+            </p>
+            <span className="inline-flex items-center text-xs font-black uppercase tracking-widest text-rose-600">
               Acessar Conteúdo <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
             </span>
           </div>
@@ -301,14 +332,39 @@ const MainApp: React.FC = () => {
 
   const renderSubjectDetail = (cat: Category) => {
     const isMath = cat === 'math';
-    const color = isMath ? 'indigo' : 'emerald';
-    const Icon = isMath ? Calculator : Scale;
+    const isPortuguese = cat === 'portuguese';
+    
+    let color = 'indigo';
+    let Icon = Calculator;
+    let title = 'Matemática';
+
+    if (isPortuguese) {
+      color = 'rose';
+      Icon = BookType;
+      title = 'Português';
+    } else if (cat === 'concursos') {
+      color = 'emerald';
+      Icon = Scale;
+      title = 'Carreiras Públicas';
+    }
 
     // Filter plans for this category
     const categoryPlans = userProgress?.studyPlans.filter(p => p.category === cat) || [];
     
     // Check if current active plan is in this category
     const activePlanInThisCategory = activePlan && activePlan.category === cat ? activePlan : null;
+
+    const generalMathModules = [
+      { id: 'arithmetic', name: 'Aritmética', desc: 'Teoria dos Números', icon: Hash, color: 'emerald' },
+      { id: 'algebra', name: 'Álgebra', desc: 'Funções & Equações', icon: Sigma, color: 'blue' },
+      { id: 'geometry_flat', name: 'Geometria Plana', desc: 'Áreas & Formas', icon: Triangle, color: 'orange' },
+      { id: 'geometry_spatial', name: 'Geometria Espacial', desc: 'Sólidos & Volumes', icon: Box, color: 'orange' },
+      { id: 'geometry_analytic', name: 'Geometria Analítica', desc: 'Coordenadas & Cônicas', icon: Crosshair, color: 'orange' },
+      { id: 'trigonometry', name: 'Trigonometria', desc: 'Seno, Cosseno & Ciclo', icon: Activity, color: 'purple' },
+      { id: 'calculus_1', name: 'Cálculo I', desc: 'Limites & Derivadas', icon: Infinity, color: 'rose' },
+      { id: 'calculus_2', name: 'Cálculo II', desc: 'Integrais & Séries', icon: Infinity, color: 'rose' },
+      { id: 'calculus_3', name: 'Cálculo III', desc: 'Multivariável', icon: Infinity, color: 'rose' },
+    ];
 
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 animate-in slide-in-from-bottom-4 duration-500">
@@ -325,7 +381,7 @@ const MainApp: React.FC = () => {
                <Icon className="w-10 h-10" />
             </div>
             <div>
-               <h1 className="text-4xl font-black text-slate-900 tracking-tight">{isMath ? 'Ciências Exatas' : 'Carreiras Públicas'}</h1>
+               <h1 className="text-4xl font-black text-slate-900 tracking-tight">{title}</h1>
                <p className="text-slate-500 font-medium">Gerencie seus editais e trilhas de aprendizagem.</p>
             </div>
           </div>
@@ -344,7 +400,7 @@ const MainApp: React.FC = () => {
              <h3 className="text-lg font-bold text-slate-800">Seus Planos de Estudo</h3>
              <button 
                onClick={() => setCurrentView('plan_setup')} 
-               className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-colors ${isMath ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+               className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-colors bg-${color}-50 text-${color}-700 hover:bg-${color}-100`}
              >
                <PlusCircle className="w-4 h-4" /> Novo Plano
              </button>
@@ -369,7 +425,7 @@ const MainApp: React.FC = () => {
                    onClick={() => handleSelectPlan(plan.id)}
                    className={`flex-shrink-0 w-72 p-5 rounded-2xl border-2 cursor-pointer transition-all relative group ${
                      isActive 
-                       ? (isMath ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl transform scale-[1.02]' : 'bg-emerald-600 border-emerald-600 text-white shadow-xl transform scale-[1.02]') 
+                       ? `bg-${color}-600 border-${color}-600 text-white shadow-xl transform scale-[1.02]` 
                        : 'bg-white border-slate-200 hover:border-slate-300'
                    }`}
                  >
@@ -429,9 +485,9 @@ const MainApp: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {isMath ? (
+          {isMath && (
             <>
-              {/* Matemática Básica (Novo Card) */}
+              {/* Matemática Básica */}
               <button 
                 onClick={() => enterModule('math', 'basic')}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-sky-500 hover:ring-2 hover:ring-sky-200 transition-all text-left shadow-sm hover:shadow-md"
@@ -460,8 +516,44 @@ const MainApp: React.FC = () => {
                    Entrar no Módulo <ChevronRight className="w-3 h-3 ml-1" />
                  </div>
               </button>
+
+              {/* Novos Módulos Individuais */}
+              {generalMathModules.map((mod) => (
+                <button 
+                  key={mod.id}
+                  onClick={() => enterModule('math', mod.id)}
+                  className={`bg-white p-6 rounded-2xl border border-slate-200 hover:border-${mod.color}-500 hover:ring-2 hover:ring-${mod.color}-200 transition-all text-left shadow-sm hover:shadow-md`}
+                >
+                   <div className={`w-10 h-10 bg-${mod.color}-100 text-${mod.color}-600 rounded-lg flex items-center justify-center mb-4`}>
+                      <mod.icon className="w-5 h-5" />
+                   </div>
+                   <h3 className="text-xl font-bold text-slate-900 mb-2">{mod.name}</h3>
+                   <p className="text-sm text-slate-600 mb-6">{mod.desc}</p>
+                   <div className={`flex items-center text-[10px] font-black uppercase tracking-widest text-${mod.color}-600`}>
+                     Entrar no Módulo <ChevronRight className="w-3 h-3 ml-1" />
+                   </div>
+                </button>
+              ))}
             </>
-          ) : (
+          )}
+
+          {isPortuguese && (
+             <button 
+                onClick={() => enterModule('portuguese', 'portuguese')}
+                className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-rose-500 hover:ring-2 hover:ring-rose-200 transition-all text-left shadow-sm hover:shadow-md col-span-full md:col-span-2 lg:col-span-3"
+              >
+                 <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center mb-4">
+                    <Feather className="w-6 h-6" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 mb-2">Língua Portuguesa Completa</h3>
+                 <p className="text-sm text-slate-600 mb-6">Módulos de Gramática, Interpretação de Texto, Literatura e Redação.</p>
+                 <div className="flex items-center text-[10px] font-black uppercase tracking-widest text-rose-600">
+                   Acessar Módulos <ChevronRight className="w-3 h-3 ml-1" />
+                 </div>
+              </button>
+          )}
+
+          {!isMath && !isPortuguese && (
             <>
               {/* Card de Direito e RL (Concursos) */}
               <button 
@@ -505,6 +597,7 @@ const MainApp: React.FC = () => {
       )}
       {currentView === 'subject_math' && renderSubjectDetail('math')}
       {currentView === 'subject_concursos' && renderSubjectDetail('concursos')}
+      {currentView === 'subject_portuguese' && renderSubjectDetail('portuguese')}
       {currentView === 'module_active' && userProgress && (
         <CombinatoricsModule 
           category={activeCategory} 

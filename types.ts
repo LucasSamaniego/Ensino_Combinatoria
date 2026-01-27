@@ -24,7 +24,26 @@ export enum TopicId {
   ADVANCED_COUNTING = 'advanced_counting',
   BINOMIAL_NUMBERS = 'binomial_numbers',
   PROBABILITY = 'probability',
+
+  // Matemática - Novos Módulos
+  GEOMETRY_FLAT = 'geometry_flat',
+  GEOMETRY_SPATIAL = 'geometry_spatial',
+  GEOMETRY_ANALYTIC = 'geometry_analytic',
+  TRIGONOMETRY = 'trigonometry',
+  ALGEBRA = 'algebra',
+  ARITHMETIC = 'arithmetic',
+  CALCULUS_1 = 'calculus_1',
+  CALCULUS_2 = 'calculus_2',
+  CALCULUS_3 = 'calculus_3',
   
+  // Português
+  PORT_GRAMMAR = 'port_grammar',
+  PORT_SYNTAX = 'port_syntax',
+  PORT_SEMANTICS = 'port_semantics',
+  PORT_LITERATURE = 'port_literature',
+  PORT_TEXT_INTERP = 'port_text_interp',
+  PORT_WRITING = 'port_writing',
+
   // Concursos - Direito
   DIR_ADMINISTRATIVO = 'dir_administrativo',
   DIR_PENAL = 'dir_penal',
@@ -132,12 +151,17 @@ export interface StudyWeek {
   topicsToStudy: string[];
   focusArea: 'Fixation' | 'Practice' | 'Revision' | 'Advanced';
   studiedMinutes?: number; // New field for time tracking
+  // --- Rich Content Fields for PDF Download ---
+  description?: string; // Instructional text on HOW to study
+  readingResources?: string[]; // Book chapters, articles, PDFs
+  videoSuggestions?: string[]; // YouTube search terms or channel recommendations
+  practicalTips?: string; // "Focus on memorizing X", "Watch out for Y trap"
 }
 
 export interface StudyPlan {
   id: string; // Unique identifier for the plan
   title: string; // User defined name (e.g., "Edital PF 2024")
-  category: 'math' | 'concursos'; // Identifica o módulo do plano
+  category: 'math' | 'concursos' | 'portuguese'; // Identifica o módulo do plano
   goal: string; // ex: "Passar na ESA", "Aprender para Escola"
   deadline: string; // ISO Date
   dailyMinutes: number;

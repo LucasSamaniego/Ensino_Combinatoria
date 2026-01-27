@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { SkillState, TopicId, SubSkill } from '../types';
 import { getDifficultyForMastery } from '../services/tracingService';
+import { translateDifficulty } from '../constants';
 import { Trophy, TrendingUp, BookOpen, BrainCircuit, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SkillCardProps {
@@ -23,16 +25,6 @@ const SkillCard: React.FC<SkillCardProps> = ({ topic, parentStats, allSkills, on
       case 'Advanced': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'Olympiad': return 'bg-amber-100 text-amber-800 border-amber-200';
       default: return 'bg-gray-100';
-    }
-  };
-
-  const getDifficultyLabel = (diff: string) => {
-    switch (diff) {
-      case 'Basic': return 'Básico';
-      case 'Intermediate': return 'Intermediário';
-      case 'Advanced': return 'Avançado';
-      case 'Olympiad': return 'Olímpico';
-      default: return diff;
     }
   };
 
@@ -59,7 +51,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ topic, parentStats, allSkills, on
           </div>
           <div className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1 ${getColor(difficulty)}`}>
             {getIcon(difficulty)}
-            {getDifficultyLabel(difficulty)}
+            {translateDifficulty(difficulty)}
           </div>
         </div>
 
@@ -103,7 +95,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ topic, parentStats, allSkills, on
                 <div className="flex justify-between text-sm text-gray-700">
                   <span>{subSkill.name}</span>
                   <span className={`text-xs px-2 py-0.5 rounded ${getColor(subDiff)} bg-opacity-50`}>
-                    {getDifficultyLabel(subDiff)}
+                    {translateDifficulty(subDiff)}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5">

@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StudyPlan, UserProgress, SkillState, Question, Difficulty, TopicId } from '../types';
 import { generateStudyPath, calculateStudyEffort, analyzeSyllabus, generateProblem } from '../services/geminiService';
-import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS } from '../constants';
+import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS, GENERAL_MATH_TOPICS, PORTUGUESE_TOPICS } from '../constants';
 import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool, BrainCircuit, XCircle, CheckCircle } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 
 interface StudyPlanSetupProps {
   progress: UserProgress;
   onPlanCreated: (plan: StudyPlan) => void;
-  category: 'math' | 'concursos';
+  category: 'math' | 'concursos' | 'portuguese';
 }
 
 type ObjectiveType = 'school' | 'contest' | 'deep_dive' | null;
@@ -49,10 +49,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Available Topics based on Category
+  // Available Topics based on Category - Now includes GENERAL_MATH_TOPICS and PORTUGUESE_TOPICS
   const availableTopics = category === 'math' 
-    ? [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS] 
-    : CONCURSOS_TOPICS;
+    ? [...BASIC_MATH_TOPICS, ...GENERAL_MATH_TOPICS, ...COMBINATORICS_TOPICS] 
+    : (category === 'portuguese' ? PORTUGUESE_TOPICS : CONCURSOS_TOPICS);
 
   // Initial setup based on category
   useEffect(() => {
@@ -65,7 +65,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     if (category === 'concursos') {
       setObjectiveType('contest'); // Auto-set contest for concursos module
     } else {
-      setObjectiveType(null); // Reset for math
+      setObjectiveType(null); // Reset for math and portuguese
     }
   }, [category, syllabusFile]);
 
@@ -304,15 +304,15 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
             type="text" 
             value={planTitle}
             onChange={(e) => setPlanTitle(e.target.value)}
-            placeholder={category === 'math' ? "Ex: Recuperação Final, ENEM 2024" : "Ex: Edital PF 2024, TJ-SP Escrevente"}
+            placeholder={category === 'math' ? "Ex: Recuperação Final, ENEM 2024" : (category === 'portuguese' ? "Ex: Redação Nota 1000" : "Ex: Edital PF 2024")}
             className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium"
             required
           />
         </div>
       </div>
 
-      {/* MATH MODULE: Objective Type Selection */}
-      {category === 'math' && (
+      {/* MATH & PORTUGUESE MODULE: Objective Type Selection */}
+      {(category === 'math' || category === 'portuguese') && (
         <div className="space-y-4">
           <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
             <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">1</span>
@@ -328,21 +328,21 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
             <button type="button" onClick={() => { setObjectiveType('contest'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'contest' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'}`}>
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'contest' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Gavel className="w-6 h-6" /></div>
-              <h3 className="font-bold text-slate-800">Concursos</h3>
-              <p className="text-xs text-slate-500 mt-1">Militares, Vestibulares, Públicos e Enem.</p>
+              <h3 className="font-bold text-slate-800">Concursos/Enem</h3>
+              <p className="text-xs text-slate-500 mt-1">Vestibulares, Públicos e Enem.</p>
             </button>
 
             <button type="button" onClick={() => { setObjectiveType('deep_dive'); setSpecificGoal(''); }} className={`p-4 rounded-xl border-2 text-left transition-all ${objectiveType === 'deep_dive' ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}>
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${objectiveType === 'deep_dive' ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}><Award className="w-6 h-6" /></div>
-              <h3 className="font-bold text-slate-800">Olímpico</h3>
-              <p className="text-xs text-slate-500 mt-1">OBMEP, Graduação e Matemática pura.</p>
+              <h3 className="font-bold text-slate-800">Avançado</h3>
+              <p className="text-xs text-slate-500 mt-1">{category === 'portuguese' ? 'Literatura Clássica e Linguística' : 'Olímpico e Universitário'}</p>
             </button>
           </div>
         </div>
       )}
 
-      {/* MATH MODULE: Specific Goal Dropdown */}
-      {category === 'math' && objectiveType && (
+      {/* MATH & PORTUGUESE MODULE: Specific Goal Dropdown */}
+      {(category === 'math' || category === 'portuguese') && objectiveType && (
         <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
             <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs">2</span>
@@ -438,7 +438,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* Deadline (Common for both) */}
+      {/* Deadline (Common for all) */}
       {(specificGoal || category === 'concursos') && (
         <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -474,7 +474,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       <div className="pt-4 flex justify-end">
         <button 
           type="submit" 
-          disabled={!deadline || (!specificGoal && category === 'math') || isAnalyzingSyllabus}
+          disabled={!deadline || (!specificGoal && category !== 'concursos') || isAnalyzingSyllabus}
           className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg"
         >
           {isAnalyzingSyllabus ? 'Analisando...' : 'Próximo'} <ArrowRight className="w-4 h-4" />
@@ -706,7 +706,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       {step !== 'generating' && (
         <div className="mb-10">
           <div className="flex justify-between items-center mb-6">
-             <h2 className="text-2xl font-black text-slate-900">{category === 'math' ? 'Plano de Estudos Personalizado' : 'Planejamento de Edital'}</h2>
+             <h2 className="text-2xl font-black text-slate-900">{category === 'math' ? 'Plano de Estudos Personalizado' : (category === 'portuguese' ? 'Plano de Português' : 'Planejamento de Edital')}</h2>
              <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-wider">
                Fase {step === 'config' ? '1' : step === 'topics' ? '2' : '3'} de 3
              </span>

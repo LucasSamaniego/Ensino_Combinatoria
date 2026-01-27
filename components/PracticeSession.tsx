@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TopicId, SkillState, Question, Difficulty, Interaction, TheoryContent } from '../types';
 import { getSmartQuestion, saveQuestionToLibrary } from '../services/questionDatabase';
 import { getDifficultyForMastery } from '../services/tracingService';
+import { translateDifficulty } from '../constants';
 import { ArrowLeft, Send, CheckCircle, XCircle, Loader2, Award, Clock, Lightbulb, BookOpen, HelpCircle, Building2, Star, Database, Check, Calendar, Briefcase, ThumbsUp, ThumbsDown } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
@@ -199,7 +200,7 @@ const PracticeSession: React.FC<PracticeSessionProps> = ({
                     </button>
                     <span className={`text-xs font-bold px-3 py-1 rounded-full border flex items-center gap-1 ${difficultyColor(question.difficulty)}`}>
                       {question.difficulty === Difficulty.OLYMPIAD && <Award className="w-3 h-3" />}
-                      {question.difficulty}
+                      {translateDifficulty(question.difficulty)}
                     </span>
                    </>
                  )}
