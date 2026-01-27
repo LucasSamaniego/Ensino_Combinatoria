@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { StudyPlan, UserProgress, SkillState } from '../types';
-import { generateStudyPath, calculateStudyEffort, analyzeSyllabus } from '../services/geminiService';
+import { StudyPlan, UserProgress, SkillState, Question, Difficulty, TopicId } from '../types';
+import { generateStudyPath, calculateStudyEffort, analyzeSyllabus, generateProblem } from '../services/geminiService';
 import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS } from '../constants';
-import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool } from 'lucide-react';
+import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool, BrainCircuit, XCircle, CheckCircle } from 'lucide-react';
+import MathRenderer from './MathRenderer';
 
 interface StudyPlanSetupProps {
   progress: UserProgress;
@@ -24,6 +25,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const [deadline, setDeadline] = useState('');
   const [userDailyMinutes, setUserDailyMinutes] = useState(60);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [knownTopics, setKnownTopics] = useState<string[]>([]); // New: Topics verified as known
   
   // Concursos Specific Data
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
@@ -35,6 +37,15 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const [recommendedMinutes, setRecommendedMinutes] = useState(0);
   const [recommendationReason, setRecommendationReason] = useState('');
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  // Placement Modal State
+  const [placementModalOpen, setPlacementModalOpen] = useState(false);
+  const [placementTopic, setPlacementTopic] = useState('');
+  const [placementQuestions, setPlacementQuestions] = useState<Question[]>([]);
+  const [placementLoading, setPlacementLoading] = useState(false);
+  const [placementCurrentIndex, setPlacementCurrentIndex] = useState(0);
+  const [placementScore, setPlacementScore] = useState(0);
+  const [placementCompleted, setPlacementCompleted] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,6 +93,69 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     } else {
       setSelectedBoards([...selectedBoards, board]);
     }
+  };
+
+  // --- PLACEMENT LOGIC ---
+  const startPlacementTest = async (topicName: string) => {
+    setPlacementTopic(topicName);
+    setPlacementModalOpen(true);
+    setPlacementLoading(true);
+    setPlacementQuestions([]);
+    setPlacementCurrentIndex(0);
+    setPlacementScore(0);
+    setPlacementCompleted(false);
+
+    try {
+      // Generate 3 questions for this topic
+      const promises = [1, 2, 3].map(() => 
+        generateProblem(
+          category,
+          topicName,
+          'placement_check' as TopicId, // Dummy ID
+          'placement_check',
+          topicName,
+          Difficulty.INTERMEDIATE,
+          selectedBoards.length > 0 ? `FILTRO DE BANCAS: [${selectedBoards.join(', ')}]` : undefined
+        )
+      );
+      
+      const qs = await Promise.all(promises);
+      setPlacementQuestions(qs);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao gerar teste. Tente novamente.");
+      setPlacementModalOpen(false);
+    } finally {
+      setPlacementLoading(false);
+    }
+  };
+
+  const handlePlacementAnswer = (option: string) => {
+    const currentQ = placementQuestions[placementCurrentIndex];
+    const isCorrect = option === currentQ.correctAnswer || option.toLowerCase() === currentQ.correctAnswer.toLowerCase();
+    
+    if (isCorrect) {
+      setPlacementScore(prev => prev + 1);
+    }
+
+    if (placementCurrentIndex < 2) {
+      setPlacementCurrentIndex(prev => prev + 1);
+    } else {
+      // Finished
+      setPlacementCompleted(true);
+      const finalScore = isCorrect ? placementScore + 1 : placementScore;
+      
+      // Pass if 2 out of 3 correct
+      if (finalScore >= 2) {
+        if (!knownTopics.includes(placementTopic)) {
+          setKnownTopics([...knownTopics, placementTopic]);
+        }
+      }
+    }
+  };
+
+  const closePlacementModal = () => {
+    setPlacementModalOpen(false);
   };
 
   // --- SYLLABUS UPLOAD HANDLER ---
@@ -146,6 +220,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const toggleTopic = (topicName: string) => {
     if (selectedTopics.includes(topicName)) {
       setSelectedTopics(selectedTopics.filter(t => t !== topicName));
+      // Remove from known if unselected
+      if (knownTopics.includes(topicName)) {
+        setKnownTopics(knownTopics.filter(t => t !== topicName));
+      }
     } else {
       setSelectedTopics([...selectedTopics, topicName]);
     }
@@ -167,12 +245,13 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     }
 
     setLoadingAnalysis(true);
-    // Move to strategy step, triggering analysis
+    // Move to strategy step, triggering analysis with KNOWN TOPICS
     const effort = await calculateStudyEffort(
       getWeaknesses(),
       getFullGoalDescription(),
       deadline,
-      selectedTopics
+      selectedTopics,
+      knownTopics // PASSING KNOWN TOPICS TO AI
     );
 
     setRecommendedMinutes(effort.recommendedMinutes);
@@ -189,9 +268,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       getFullGoalDescription(), 
       deadline, 
       chosenMinutes,
-      selectedTopics, // STRICT FILTER PASSED HERE
+      selectedTopics, 
       category, 
-      syllabusSummary 
+      syllabusSummary,
+      knownTopics // PASSING KNOWN TOPICS TO AI
     );
 
     const newPlan: StudyPlan = {
@@ -403,6 +483,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     </form>
   );
 
+  // 2. Topics Selection & Placement Check Step
   const renderTopicsStep = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8">
       <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
@@ -425,16 +506,44 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
           {availableTopics.map(topic => {
             const isSelected = selectedTopics.includes(topic.name);
+            const isKnown = knownTopics.includes(topic.name);
+            
             return (
               <div 
                 key={topic.id}
-                onClick={() => toggleTopic(topic.name)}
-                className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                className={`p-3 rounded-lg border flex items-center justify-between transition-all ${
+                  isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100'
+                }`}
               >
-                <span className={`text-sm font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-600'}`}>{topic.name}</span>
-                <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
-                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                <div 
+                  onClick={() => toggleTopic(topic.name)}
+                  className="flex items-center gap-3 flex-grow cursor-pointer"
+                >
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <span className={`text-sm font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-600'}`}>{topic.name}</span>
                 </div>
+
+                {/* Placement Button - Only if selected */}
+                {isSelected && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); startPlacementTest(topic.name); }}
+                    disabled={isKnown}
+                    className={`ml-2 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                      isKnown 
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 cursor-default' 
+                        : 'bg-white text-indigo-500 border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                    title={isKnown ? "Tópico validado como dominado" : "Fazer teste rápido para pular conteúdo básico"}
+                  >
+                    {isKnown ? (
+                      <>Dominado <CheckCircle className="w-3 h-3" /></>
+                    ) : (
+                      <>Validar <BrainCircuit className="w-3 h-3" /></>
+                    )}
+                  </button>
+                )}
               </div>
             )
           })}
@@ -466,6 +575,13 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
             <p className="text-indigo-200 text-sm mt-1">{recommendationReason}</p>
           </div>
         </div>
+
+        {knownTopics.length > 0 && (
+          <div className="mb-6 bg-emerald-900/30 border border-emerald-500/30 p-3 rounded-lg text-xs text-emerald-200">
+             <span className="font-bold text-white block mb-1">Aceleração Ativada:</span>
+             {knownTopics.length} tópicos foram identificados como dominados e serão agendados apenas para revisão/questões.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-8 mt-8 border-t border-white/10 pt-8">
            <div>
@@ -513,6 +629,78 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     </div>
   );
 
+  // --- PLACEMENT MODAL ---
+  const renderPlacementModal = () => {
+    if (!placementModalOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+          {/* Header */}
+          <div className="bg-indigo-900 p-6 text-white flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-bold">Validar Conhecimento</h3>
+              <p className="text-indigo-200 text-sm">Tópico: {placementTopic}</p>
+            </div>
+            <button onClick={closePlacementModal} className="text-indigo-300 hover:text-white"><XCircle className="w-6 h-6"/></button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 flex-grow overflow-y-auto">
+            {placementLoading ? (
+              <div className="py-12 flex flex-col items-center text-slate-400">
+                <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+                <p>Gerando teste personalizado...</p>
+              </div>
+            ) : placementCompleted ? (
+              <div className="py-8 text-center space-y-4">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto ${placementScore >= 2 ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                  {placementScore >= 2 ? <CheckCircle className="w-10 h-10" /> : <School className="w-10 h-10" />}
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-slate-800">{placementScore >= 2 ? 'Aprovado!' : 'Continue Estudando'}</h4>
+                  <p className="text-slate-500 mt-2">
+                    Você acertou {placementScore} de 3 questões.
+                    {placementScore >= 2 
+                      ? ' Este tópico será marcado como "Dominado" no seu plano.' 
+                      : ' Recomendamos manter este tópico como "Aprendizado" no plano.'}
+                  </p>
+                </div>
+                <button onClick={closePlacementModal} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl mt-4">
+                  Continuar Setup
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase">
+                  <span>Questão {placementCurrentIndex + 1} de 3</span>
+                  <span>Acertos: {placementScore}</span>
+                </div>
+                
+                <div className="text-slate-800 text-lg leading-relaxed">
+                   <MathRenderer text={placementQuestions[placementCurrentIndex]?.text || ''} />
+                </div>
+
+                <div className="space-y-3">
+                  {placementQuestions[placementCurrentIndex]?.options?.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handlePlacementAnswer(opt)}
+                      className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-slate-700"
+                    >
+                      <span className="font-bold mr-2 text-indigo-900">{String.fromCharCode(65 + idx)}.</span> 
+                      <MathRenderer text={opt} className="inline" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-3xl mx-auto bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-slate-100 my-8">
       {step !== 'generating' && (
@@ -536,6 +724,8 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       {step === 'topics' && renderTopicsStep()}
       {step === 'strategy' && renderStrategyStep()}
       {step === 'generating' && renderGeneratingStep()}
+      
+      {renderPlacementModal()}
     </div>
   );
 };

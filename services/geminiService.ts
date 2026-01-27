@@ -532,11 +532,16 @@ export const calculateStudyEffort = async (
   weaknesses: string[],
   goalDescription: string,
   deadline: string,
-  selectedTopics: string[] = []
+  selectedTopics: string[] = [],
+  knownTopics: string[] = [] // Added knownTopics parameter
 ): Promise<{ recommendedMinutes: number; reasoning: string }> => {
   
   const topicContext = selectedTopics.length > 0 
     ? `O plano cobrirá APENAS estes tópicos selecionados: ${selectedTopics.join(', ')}.`
+    : '';
+
+  const knowledgeContext = knownTopics.length > 0
+    ? `O aluno já DOMINA os seguintes tópicos (validado via teste): ${knownTopics.join(', ')}. Reduza o esforço/tempo nestes, foque em revisão.`
     : '';
 
   const prompt = `
@@ -547,16 +552,18 @@ export const calculateStudyEffort = async (
     - Prazo Final: ${deadline} (Hoje é: ${new Date().toISOString().split('T')[0]})
     - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma grave'}
     - ${topicContext}
+    - ${knowledgeContext}
     
     TAREFA:
     Calcule a quantidade IDEAL de minutos de estudo por dia para atingir a maestria NOS TÓPICOS SELECIONADOS até o prazo.
     Considere:
     1. O volume de conteúdo dos tópicos selecionados (${selectedTopics.length} tópicos).
     2. Se o prazo for curto e houver muitas lacunas, aumente o tempo.
-    3. Mínimo razoável: 20 min (se poucos tópicos). Máximo razoável: 240 min.
+    3. Se houver muitos tópicos já dominados, reduza o tempo sugerido.
+    4. Mínimo razoável: 20 min (se poucos tópicos). Máximo razoável: 240 min.
     
     Retorne JSON:
-    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Para cobrir os 3 tópicos selecionados em 2 semanas...')" }
+    { "recommendedMinutes": number, "reasoning": "Texto curto justificando (ex: 'Como você já domina X e Y, o tempo foi reduzido...')" }
   `;
 
   try {
@@ -594,7 +601,8 @@ export const generateStudyPath = async (
   dailyMinutes: number,
   selectedTopics: string[] = [],
   category?: 'math' | 'concursos',
-  syllabusContext?: string // Passed from the updated StudyPlanSetup
+  syllabusContext?: string, // Passed from the updated StudyPlanSetup
+  knownTopics: string[] = [] // Added knownTopics
 ): Promise<StudyWeek[]> => {
   
   // 1. Calculate the actual time available
@@ -634,6 +642,15 @@ export const generateStudyPath = async (
     ? `CONTEXTO DO EDITAL: O usuário fez upload do edital. O resumo é: "${syllabusContext}". Use isso apenas para priorizar os tópicos JÁ SELECIONADOS.`
     : '';
 
+  const knowledgeInstruction = knownTopics.length > 0
+    ? `
+      ATENÇÃO AOS TÓPICOS JÁ DOMINADOS: [${knownTopics.join(', ')}].
+      - Para estes tópicos, agende APENAS "Revision" (Revisão/Questões).
+      - NÃO agende "Fixation" ou "Learning" para eles.
+      - Use o tempo economizado para aprofundar nos outros tópicos.
+    `
+    : '';
+
   const prompt = `
     ${personaInstruction}
     
@@ -644,6 +661,7 @@ export const generateStudyPath = async (
     - Lacunas Identificadas: ${weaknesses.length > 0 ? weaknesses.join(', ') : 'Nenhuma lacuna crítica'}
     
     ${syllabusInstruction}
+    ${knowledgeInstruction}
 
     DURAÇÃO DO PLANO:
     Você tem EXATAMENTE ${timeQuantity} ${timeUnit} até a prova.
