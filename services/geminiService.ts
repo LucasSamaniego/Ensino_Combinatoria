@@ -460,24 +460,32 @@ export const analyzeSyllabus = async (
   mimeType: string
 ): Promise<{ matchedTopics: string[], summary: string }> => {
   
+  // Agora temos "Raciocínio Lógico" E "Matemática & Estatística" separadamente
   const knownTopicsList = CONCURSOS_TOPICS.map(t => t.name).join(", ");
 
   const prompt = `
-    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS.
+    ATUE COMO UM ESPECIALISTA EM ANÁLISE DE EDITAIS DE CONCURSO.
+    
+    SUA TAREFA É MAPEAMENTO E FILTRAGEM RIGOROSA.
     
     LISTA DE MÓDULOS DISPONÍVEIS NO SISTEMA:
     [${knownTopicsList}]
     
-    TAREFA:
+    INSTRUÇÃO DE FILTRO:
     1. Analise o arquivo do edital fornecido.
     2. Identifique QUAIS tópicos da lista acima estão explicitamente no edital.
-    3. Retorne APENAS os nomes exatos da lista que foram encontrados.
-    4. Ignore qualquer tópico do edital que não tenha correspondência direta na nossa lista.
+    
+    REGRA CRÍTICA - SEPARAÇÃO DE LÓGICA E MATEMÁTICA:
+    - O módulo "Raciocínio Lógico" contém APENAS: Lógica Proposicional, Tabelas-Verdade, Argumentos.
+    - O módulo "Matemática & Estatística" contém APENAS: Análise Combinatória, Probabilidade, Conjuntos.
+    
+    SE o edital diz "Raciocínio Lógico" mas descreve apenas proposições e conectivos, SELECIONE APENAS "Raciocínio Lógico".
+    SE o edital diz "Raciocínio Lógico" E TAMBÉM LISTA "Contagem", "Permutação" ou "Probabilidade", SELECIONE "Raciocínio Lógico" E TAMBÉM "Matemática & Estatística".
     
     Retorne JSON:
     {
-      "matchedTopics": ["Tópico A", "Tópico B"],
-      "summary": "Resumo focado apenas nos tópicos encontrados..."
+      "matchedTopics": ["Nome Exato da Lista"],
+      "summary": "Resumo justificando a escolha (ex: 'Combinatória não encontrada, removido módulo de Matemática.')."
     }
   `;
 

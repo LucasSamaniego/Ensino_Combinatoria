@@ -33,7 +33,8 @@ export enum TopicId {
   
   // Concursos - Geral
   INFORMATICA = 'informatica',
-  RACIOCINIO_LOGICO = 'raciocinio_logico'
+  RACIOCINIO_LOGICO = 'raciocinio_logico',
+  MATEMATICA_CONCURSOS = 'matematica_concursos' // Novo ID separado
 }
 
 export interface UserProfile {

@@ -205,13 +205,26 @@ export const CONCURSOS_TOPICS = [
       { id: 'redes_internet', name: 'Redes e Internet', parentId: TopicId.INFORMATICA }
     ]
   },
+  // SEPARAÇÃO: Raciocínio Lógico (Puro)
   {
     id: TopicId.RACIOCINIO_LOGICO,
     name: 'Raciocínio Lógico',
-    description: 'Proposições, diagramas e sequências.',
+    description: 'Lógica Proposicional, Tabelas-Verdade e Argumentação.',
     subSkills: [
-      { id: 'logica_proposicional', name: 'Lógica Proposicional', parentId: TopicId.RACIOCINIO_LOGICO },
-      { id: 'analise_combinatoria_rl', name: 'Análise Combinatória p/ Concursos', parentId: TopicId.RACIOCINIO_LOGICO }
+      { id: 'logica_proposicional', name: 'Lógica Proposicional (Conectivos)', parentId: TopicId.RACIOCINIO_LOGICO },
+      { id: 'tabela_verdade', name: 'Tabelas-Verdade e Equivalências', parentId: TopicId.RACIOCINIO_LOGICO },
+      { id: 'diagramas_logicos', name: 'Diagramas Lógicos e Argumentos', parentId: TopicId.RACIOCINIO_LOGICO }
+    ]
+  },
+  // SEPARAÇÃO: Matemática para Concursos (Quantitativo)
+  {
+    id: TopicId.MATEMATICA_CONCURSOS,
+    name: 'Matemática & Estatística',
+    description: 'Análise Combinatória, Probabilidade e Conjuntos.',
+    subSkills: [
+      { id: 'analise_combinatoria_rl', name: 'Análise Combinatória', parentId: TopicId.MATEMATICA_CONCURSOS },
+      { id: 'probabilidade_concurso', name: 'Probabilidade', parentId: TopicId.MATEMATICA_CONCURSOS },
+      { id: 'conjuntos_numericos', name: 'Teoria dos Conjuntos', parentId: TopicId.MATEMATICA_CONCURSOS }
     ]
   }
 ];
