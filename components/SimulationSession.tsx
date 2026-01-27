@@ -10,7 +10,7 @@ import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbul
 
 interface SimulationSessionProps {
   config: SimulationConfig;
-  category?: 'math' | 'concursos';
+  category?: 'math' | 'concursos' | 'portuguese';
   availableTopics: { id: TopicId; name: string }[];
   userSkills?: { [key: string]: SkillState };
   onComplete: (interactions: Interaction[]) => void;
@@ -155,7 +155,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     try {
       // Usa generateProblem para buscar questão individualmente com o contexto correto
       const q = await generateProblem(
-        category as 'math' | 'concursos',
+        category as 'math' | 'concursos' | 'portuguese',
         topic.name,
         topic.id,
         'adaptive_weekly',

@@ -8,7 +8,7 @@ import { api } from "./api";
  * Se a API não retornar nada (banco vazio ou sem conexão), usa a IA (Gemini) como fallback.
  */
 export const getSmartQuestion = async (
-  category: 'math' | 'concursos',
+  category: 'math' | 'concursos' | 'portuguese',
   topicName: string,
   topicId: TopicId,
   subSkillId: string,
@@ -42,6 +42,6 @@ export const getSmartQuestion = async (
 /**
  * Envia a questão para a API salvar no MySQL.
  */
-export const saveQuestionToLibrary = async (question: Question, category: 'math' | 'concursos') => {
+export const saveQuestionToLibrary = async (question: Question, category: 'math' | 'concursos' | 'portuguese') => {
   return await api.createQuestion(question, category);
 };

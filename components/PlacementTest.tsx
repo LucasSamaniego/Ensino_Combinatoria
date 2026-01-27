@@ -6,7 +6,7 @@ import MathRenderer from './MathRenderer';
 import { Loader2, CheckCircle, ArrowRight, RefreshCw, Building2 } from 'lucide-react';
 
 interface PlacementTestProps {
-  category: 'math' | 'concursos';
+  category: 'math' | 'concursos' | 'portuguese';
   subCategory?: string;
   onComplete: (results: Interaction[]) => void;
 }

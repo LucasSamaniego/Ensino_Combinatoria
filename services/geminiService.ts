@@ -31,7 +31,7 @@ const LATEX_INSTRUCTION = `
 `;
 
 export const generateProblem = async (
-  category: 'math' | 'concursos',
+  category: 'math' | 'concursos' | 'portuguese',
   topicName: string,
   topicId: TopicId,
   subSkillId: string,
@@ -76,8 +76,21 @@ export const generateProblem = async (
       FIREWALL: Math only. No laws/politics.
     `;
 
+  } else if (category === 'portuguese') {
+    systemInstructionText = "Professor Pasquale Cipro Neto. Specialist in Brazilian Portuguese Grammar, Text Interpretation, and Literature.";
+    
+    // Portuguese often needs text context, allow searching or creative generation
+    toolsConfig = undefined; // For now, generation only unless we want to search texts
+    
+    constraints = `
+      CONTEXT: Generating questions for: ${topicName} > ${subSkillName}. Difficulty: ${currentDifficulty}.
+      STYLE: Vestibular/ENEM/Concurso style.
+      REQUIREMENT: If the question requires a text, include a SHORT text (max 3 lines) in the question body or as a 'miniTheory'.
+      VISUALIZATION: The field "visualization" must be { "type": "none" }.
+    `;
+
   } else {
-    // Concursos Logic (Also covers Portuguese if categorized here)
+    // Concursos Logic
     toolsConfig = [{ googleSearch: {} }];
     systemInstructionText = "Search Engine specialized in Brazilian Civil Service Exams (Concursos Públicos). Strict adherence to real exam questions.";
     
@@ -201,7 +214,7 @@ export const generateProblem = async (
 
 // ... (Other functions: generatePlacementQuestions, generateSimulationQuestions, generateFlashcards, generateFeedbackReport)
 
-export const generatePlacementQuestions = async (category: 'math' | 'concursos', subCategory?: string): Promise<Question[]> => {
+export const generatePlacementQuestions = async (category: 'math' | 'concursos' | 'portuguese', subCategory?: string): Promise<Question[]> => {
   let systemInstructionText = "You are an expert exam creator.";
   let contentFilter = "";
   let toolsConfig = undefined;
@@ -214,6 +227,9 @@ export const generatePlacementQuestions = async (category: 'math' | 'concursos',
       systemInstructionText = "Professor Morgado. Combinatorics Expert.";
       contentFilter = "Generate 4 Combinatorics placement questions (PFC, Permutations, Logic).";
     }
+  } else if (category === 'portuguese') {
+    systemInstructionText = "Expert in Portuguese Language Assessment.";
+    contentFilter = "Generate 4 Diagnostic Questions covering: Orthography, Basic Syntax, Text Comprehension.";
   } else {
     toolsConfig = [{ googleSearch: {} }];
     systemInstructionText = "Search Engine for Real Exams.";
@@ -510,7 +526,7 @@ export const generateStudyPath = async (
   deadline: string, 
   dailyMinutes: number,
   selectedTopics: string[] = [],
-  category?: 'math' | 'concursos',
+  category?: 'math' | 'concursos' | 'portuguese',
   syllabusContext?: string, 
   knownTopics: string[] = [] 
 ): Promise<StudyWeek[]> => {
@@ -529,6 +545,7 @@ export const generateStudyPath = async (
   let personaInstruction = "Coordinator.";
   if (category === 'math') personaInstruction = "Math Coordinator. No laws.";
   if (category === 'concursos') personaInstruction = "Public Exam Expert. Strict topic adherence.";
+  if (category === 'portuguese') personaInstruction = "Portuguese Language Teacher. Focus on Grammar and Interpretation.";
 
   const prompt = `
     Generate Study Plan.

@@ -10,7 +10,7 @@ import Illustration from './Illustration';
 import { useAuth } from '../contexts/AuthContext';
 
 interface PracticeSessionProps {
-  category: 'math' | 'concursos';
+  category: 'math' | 'concursos' | 'portuguese';
   topicId: TopicId;
   topicName: string;
   topicSubSkills: { id: string, name: string }[];
