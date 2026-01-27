@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StudyPlan, UserProgress, SkillState } from '../types';
 import { generateStudyPath, calculateStudyEffort, analyzeSyllabus } from '../services/geminiService';
 import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS } from '../constants';
-import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText } from 'lucide-react';
+import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool } from 'lucide-react';
 
 interface StudyPlanSetupProps {
   progress: UserProgress;
@@ -18,6 +18,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const [step, setStep] = useState<'config' | 'topics' | 'strategy' | 'generating'>('config');
 
   // Form Data
+  const [planTitle, setPlanTitle] = useState('');
   const [objectiveType, setObjectiveType] = useState<ObjectiveType>(null);
   const [specificGoal, setSpecificGoal] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -89,6 +90,11 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       const file = e.target.files[0];
       setSyllabusFile(file);
       
+      // Auto-set title if empty
+      if (!planTitle) {
+        setPlanTitle(file.name.replace('.pdf', '').replace('.txt', ''));
+      }
+
       // Automatic Analysis
       setIsAnalyzingSyllabus(true);
       try {
@@ -147,6 +153,10 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
   const handleConfigSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!planTitle) {
+      alert("Por favor, dê um nome ao seu plano.");
+      return;
+    }
     setStep('topics');
   };
 
@@ -185,7 +195,9 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     );
 
     const newPlan: StudyPlan = {
-      category: category, // Save category
+      id: crypto.randomUUID(), // New unique ID for the plan
+      title: planTitle || 'Novo Plano',
+      category: category, 
       goal: getFullGoalDescription(),
       deadline,
       dailyMinutes: chosenMinutes,
@@ -201,6 +213,24 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const renderConfigStep = () => (
     <form onSubmit={handleConfigSubmit} className="space-y-8 animate-in fade-in">
       
+      {/* Plan Name Input */}
+      <div className="space-y-2">
+        <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+          Nome do Plano
+        </label>
+        <div className="relative">
+          <PenTool className="absolute left-4 top-3.5 text-slate-400 w-5 h-5" />
+          <input 
+            type="text" 
+            value={planTitle}
+            onChange={(e) => setPlanTitle(e.target.value)}
+            placeholder={category === 'math' ? "Ex: Recuperação Final, ENEM 2024" : "Ex: Edital PF 2024, TJ-SP Escrevente"}
+            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium"
+            required
+          />
+        </div>
+      </div>
+
       {/* MATH MODULE: Objective Type Selection */}
       {category === 'math' && (
         <div className="space-y-4">

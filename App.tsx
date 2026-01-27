@@ -12,7 +12,10 @@ import {
   Binary, 
   Cpu, 
   Divide, 
-  ShieldAlert 
+  ShieldAlert,
+  PlusCircle,
+  FileText,
+  CheckCircle2
 } from 'lucide-react';
 import CombinatoricsModule from './components/CombinatoricsModule';
 import OnlineClassroom from './components/OnlineClassroom';
@@ -49,31 +52,30 @@ const MainApp: React.FC = () => {
 
   const handlePlanCreated = async (plan: StudyPlan) => {
     if (user && userProgress) {
-      // Atualiza estado local imediatamente para feedback visual
-      const updated = { ...userProgress, studyPlan: plan };
+      const updated = { 
+        ...userProgress, 
+        studyPlans: [...userProgress.studyPlans, plan], // Append new plan
+        activePlanId: plan.id // Set as active
+      };
       setUserProgress(updated);
       
-      // Salva no backend
       await saveUserProgress(user.uid, updated);
-      
-      // Muda a visualização
       setCurrentView(`subject_${activeCategory}` as ViewState); 
     }
   };
 
-  // Callback para receber atualizações do módulo filho (CombinatoricsModule)
-  const handleProgressUpdate = async (newProgress: UserProgress) => {
-    // PREVENÇÃO CRÍTICA DE PERDA DE DADOS:
-    // O módulo filho pode não ter o studyPlan se carregou o estado do disco antes da atualização em memória.
-    // Garantimos que o studyPlan do estado atual do App seja preservado se o filho não o tiver.
-    const mergedProgress = {
-       ...newProgress,
-       studyPlan: newProgress.studyPlan || userProgress?.studyPlan
-    };
+  const handleSelectPlan = async (planId: string) => {
+    if (user && userProgress) {
+      const updated = { ...userProgress, activePlanId: planId };
+      setUserProgress(updated);
+      await saveUserProgress(user.uid, updated);
+    }
+  };
 
-    setUserProgress(mergedProgress);
+  const handleProgressUpdate = async (newProgress: UserProgress) => {
+    setUserProgress(newProgress);
     if (user) {
-      await saveUserProgress(user.uid, mergedProgress);
+      await saveUserProgress(user.uid, newProgress);
     }
   };
 
@@ -95,6 +97,8 @@ const MainApp: React.FC = () => {
                   user.email === 'samaniego444@gmail.com' || 
                   user.email === 'convidado@plataforma.com';
 
+  const activePlan = userProgress?.studyPlans.find(p => p.id === userProgress.activePlanId);
+
   const enterModule = (cat: Category, sub?: string) => {
     // 1. Verifica permissão (assignedCourses)
     const allowed = userProgress?.assignedCourses.includes(cat);
@@ -111,14 +115,7 @@ const MainApp: React.FC = () => {
     if (sub) {
       setCurrentView('module_active');
     } else {
-      // 3. Se for dashboard da matéria, verifica se tem plano PARA ESTA CATEGORIA
-      const hasPlanForThisCategory = userProgress?.studyPlan?.category === cat;
-      
-      if (userProgress?.hasCompletedPlacement && !hasPlanForThisCategory) {
-        setCurrentView('plan_setup');
-      } else {
-        setCurrentView(`subject_${cat}` as ViewState);
-      }
+      setCurrentView(`subject_${cat}` as ViewState);
     }
   };
 
@@ -140,8 +137,8 @@ const MainApp: React.FC = () => {
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter uppercase">Plataforma de Estudos</h1>
         <p className="text-lg text-slate-500 max-w-2xl mx-auto">
           Olá, <span className="text-indigo-600 font-bold">{firstName}</span>. 
-          {userProgress?.studyPlan 
-            ? ` Seguindo plano: ${userProgress.studyPlan.goal}` 
+          {activePlan
+            ? ` Seguindo plano ativo: ${activePlan.title}` 
             : ' Selecione sua trilha para começar.'}
         </p>
       </div>
@@ -229,6 +226,12 @@ const MainApp: React.FC = () => {
     const color = isMath ? 'indigo' : 'emerald';
     const Icon = isMath ? Calculator : Scale;
 
+    // Filter plans for this category
+    const categoryPlans = userProgress?.studyPlans.filter(p => p.category === cat) || [];
+    
+    // Check if current active plan is in this category
+    const activePlanInThisCategory = activePlan && activePlan.category === cat ? activePlan : null;
+
     return (
       <div className="max-w-6xl mx-auto px-4 py-12 animate-in slide-in-from-bottom-4 duration-500">
         <button 
@@ -245,7 +248,7 @@ const MainApp: React.FC = () => {
             </div>
             <div>
                <h1 className="text-4xl font-black text-slate-900 tracking-tight">{isMath ? 'Ciências Exatas' : 'Carreiras Públicas'}</h1>
-               <p className="text-slate-500 font-medium">Selecione o módulo de estudo para iniciar o rastreamento DKT.</p>
+               <p className="text-slate-500 font-medium">Gerencie seus editais e trilhas de aprendizagem.</p>
             </div>
           </div>
           
@@ -257,28 +260,71 @@ const MainApp: React.FC = () => {
           </button>
         </div>
 
-        {/* Display Adaptive Study Plan if Available AND matches Category */}
-        {userProgress?.studyPlan && userProgress.studyPlan.category === cat && (
-          <StudyPathTimeline 
-            plan={userProgress.studyPlan} 
-            onStartWeek={handleStartWeek} 
-          />
-        )}
-        
-        {/* If plan exists but is for another category, show a small note or button */}
-        {userProgress?.studyPlan && userProgress.studyPlan.category !== cat && (
-          <div className="bg-slate-100 border border-slate-200 p-4 rounded-xl mb-8 flex items-center justify-between">
-             <div className="text-slate-600 text-sm">
-                Você tem um plano ativo em <strong>{userProgress.studyPlan.category === 'math' ? 'Matemática' : 'Concursos'}</strong>.
-                Para criar um plano para <strong>{cat === 'math' ? 'Matemática' : 'Concursos'}</strong>, clique abaixo.
-             </div>
+        {/* --- PLAN MANAGEMENT SECTION --- */}
+        <div className="mb-12">
+          <div className="flex justify-between items-end mb-4">
+             <h3 className="text-lg font-bold text-slate-800">Seus Planos de Estudo</h3>
              <button 
-               onClick={() => setCurrentView('plan_setup')}
-               className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg uppercase"
+               onClick={() => setCurrentView('plan_setup')} 
+               className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-colors ${isMath ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
              >
-               Criar Plano para {cat === 'math' ? 'Matemática' : 'Concursos'}
+               <PlusCircle className="w-4 h-4" /> Novo Plano
              </button>
           </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-4">
+             {categoryPlans.length === 0 && (
+                <div 
+                  onClick={() => setCurrentView('plan_setup')}
+                  className="flex-shrink-0 w-64 h-32 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all"
+                >
+                   <PlusCircle className="w-8 h-8 mb-2 opacity-50" />
+                   <span className="text-sm font-bold">Criar Primeiro Plano</span>
+                </div>
+             )}
+
+             {categoryPlans.map(plan => {
+               const isActive = userProgress?.activePlanId === plan.id;
+               return (
+                 <div 
+                   key={plan.id}
+                   onClick={() => handleSelectPlan(plan.id)}
+                   className={`flex-shrink-0 w-72 p-5 rounded-2xl border-2 cursor-pointer transition-all relative ${
+                     isActive 
+                       ? (isMath ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl transform scale-[1.02]' : 'bg-emerald-600 border-emerald-600 text-white shadow-xl transform scale-[1.02]') 
+                       : 'bg-white border-slate-200 hover:border-slate-300'
+                   }`}
+                 >
+                    {isActive && <div className="absolute -top-3 -right-3 bg-white text-slate-900 rounded-full p-1 shadow-md border"><CheckCircle2 className="w-5 h-5 text-green-500" /></div>}
+                    
+                    <div className="flex items-center gap-2 mb-2">
+                       <FileText className={`w-4 h-4 ${isActive ? 'text-white/70' : 'text-slate-400'}`} />
+                       <span className={`text-[10px] font-bold uppercase tracking-widest ${isActive ? 'text-white/70' : 'text-slate-400'}`}>
+                         {new Date(plan.createdAt).toLocaleDateString()}
+                       </span>
+                    </div>
+                    <h4 className={`font-bold text-lg leading-tight mb-4 ${isActive ? 'text-white' : 'text-slate-800'}`}>{plan.title}</h4>
+                    <div className={`text-xs ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
+                       Meta: {new Date(plan.deadline).toLocaleDateString()}
+                    </div>
+                 </div>
+               )
+             })}
+          </div>
+        </div>
+
+        {/* Display Active Plan Timeline */}
+        {activePlanInThisCategory ? (
+          <StudyPathTimeline 
+            plan={activePlanInThisCategory} 
+            onStartWeek={handleStartWeek} 
+          />
+        ) : (
+          categoryPlans.length > 0 && (
+            <div className="bg-slate-100 p-8 rounded-2xl text-center text-slate-500 mb-8">
+               Selecione um plano acima para visualizar a linha do tempo.
+            </div>
+          )
         )}
 
         {/* Warning if Placement not done */}
@@ -366,7 +412,7 @@ const MainApp: React.FC = () => {
           subCategory={activeSubCategory}
           weeklyTopics={weeklyStudyTopics}
           weeklyTheme={weeklyTheme}
-          initialProgress={userProgress} // Passando progresso inicial para evitar sobrescrita
+          initialProgress={userProgress} 
           onUpdateProgress={handleProgressUpdate}
           onExit={() => enterModule(activeCategory)} 
         />

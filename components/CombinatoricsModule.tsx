@@ -93,9 +93,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const getVisibleTopics = () => {
     if (subCategory === 'weekly' || subCategory === 'basic') return currentTopics;
 
-    if (progress.studyPlan && progress.studyPlan.category === category) {
+    // Use Active Plan based on ID
+    const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
+
+    if (activePlan && activePlan.category === category) {
       const planTopics = new Set(
-        progress.studyPlan.generatedSchedule.flatMap(w => w.topicsToStudy)
+        activePlan.generatedSchedule.flatMap(w => w.topicsToStudy)
       );
       return currentTopics.filter(t => planTopics.has(t.name));
     }
@@ -140,8 +143,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
       return;
     }
 
-    const hasPlanForCategory = data.studyPlan && data.studyPlan.category === category;
-    if (data.hasCompletedPlacement && !hasPlanForCategory) {
+    // Se tem placement mas nao tem nenhum plano, manda pro setup
+    if (data.hasCompletedPlacement && data.studyPlans.length === 0) {
        setView('plan_setup_internal');
        return;
     }
@@ -217,7 +220,11 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handlePlanCreatedInternal = async (plan: StudyPlan) => {
-    const updatedProgress = { ...progress, studyPlan: plan };
+    const updatedProgress = { 
+      ...progress, 
+      studyPlans: [...progress.studyPlans, plan], 
+      activePlanId: plan.id 
+    };
     setProgress(updatedProgress);
     if (onUpdateProgress) onUpdateProgress(updatedProgress);
     setView('dashboard');
@@ -239,14 +246,19 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     setView('practice');
   };
 
-  // Helper function to update study plan time
+  // Helper function to update study plan time (UPDATED for multi-plan)
   const updateStudyPlanTime = (currentProgress: UserProgress, timeSeconds: number) => {
-    if (currentProgress.studyPlan && currentProgress.studyPlan.category === category) {
-      // Calculate current week index based on plan start date
-      const daysPassed = Math.floor((Date.now() - currentProgress.studyPlan.createdAt) / (1000 * 60 * 60 * 24));
-      const currentWeekIndex = Math.min(Math.floor(daysPassed / 7), currentProgress.studyPlan.generatedSchedule.length - 1);
+    // Find active plan
+    const activePlanIndex = currentProgress.studyPlans.findIndex(p => p.id === currentProgress.activePlanId);
+    
+    if (activePlanIndex !== -1) {
+      const activePlan = currentProgress.studyPlans[activePlanIndex];
       
-      const newSchedule = [...currentProgress.studyPlan.generatedSchedule];
+      // Calculate current week index based on plan start date
+      const daysPassed = Math.floor((Date.now() - activePlan.createdAt) / (1000 * 60 * 60 * 24));
+      const currentWeekIndex = Math.min(Math.floor(daysPassed / 7), activePlan.generatedSchedule.length - 1);
+      
+      const newSchedule = [...activePlan.generatedSchedule];
       if (newSchedule[currentWeekIndex]) {
         const currentMinutes = newSchedule[currentWeekIndex].studiedMinutes || 0;
         newSchedule[currentWeekIndex] = {
@@ -254,13 +266,16 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
           studiedMinutes: currentMinutes + (timeSeconds / 60)
         };
         
-        return {
-          ...currentProgress.studyPlan,
+        const updatedPlans = [...currentProgress.studyPlans];
+        updatedPlans[activePlanIndex] = {
+          ...activePlan,
           generatedSchedule: newSchedule
         };
+
+        return updatedPlans;
       }
     }
-    return currentProgress.studyPlan;
+    return currentProgress.studyPlans;
   };
 
   const handleInteractionComplete = (interaction: Interaction) => {
@@ -271,11 +286,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     let updated = { ...progress, skills: newSkills, history: newHistory };
 
     // 2. Update Study Time Tracking
-    if (progress.studyPlan) {
-      const updatedPlan = updateStudyPlanTime(updated, interaction.timeSpentSeconds);
-      if (updatedPlan) {
-        updated = { ...updated, studyPlan: updatedPlan };
-      }
+    const updatedPlans = updateStudyPlanTime(updated, interaction.timeSpentSeconds);
+    if (updatedPlans) {
+      updated = { ...updated, studyPlans: updatedPlans };
     }
     
     setProgress(updated);
@@ -304,11 +317,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     });
 
     // 2. Update Study Plan Time (Batch)
-    if (currentProgress.studyPlan) {
-      const updatedPlan = updateStudyPlanTime(currentProgress, totalSimTime);
-      if (updatedPlan) {
-        currentProgress = { ...currentProgress, studyPlan: updatedPlan };
-      }
+    const updatedPlans = updateStudyPlanTime(currentProgress, totalSimTime);
+    if (updatedPlans) {
+      currentProgress = { ...currentProgress, studyPlans: updatedPlans };
     }
 
     // 3. Flashcards generation logic for weekly mode
@@ -366,11 +377,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     updatedProgress.flashcards = newDeck;
 
     // Update Time
-    if (progress.studyPlan) {
-      const updatedPlan = updateStudyPlanTime(updatedProgress, estimatedTime);
-      if (updatedPlan) {
-        updatedProgress.studyPlan = updatedPlan;
-      }
+    const updatedPlans = updateStudyPlanTime(updatedProgress, estimatedTime);
+    if (updatedPlans) {
+      updatedProgress.studyPlans = updatedPlans;
     }
 
     setProgress(updatedProgress);
@@ -409,7 +418,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const getCurrentTopicData = () => currentTopics.find(t => t.id === activeTopic);
 
   // Extract study plan goal to pass as context for question generation
-  const studyGoalContext = progress.studyPlan && progress.studyPlan.category === category ? progress.studyPlan.goal : undefined;
+  const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
+  const studyGoalContext = activePlan && activePlan.category === category ? activePlan.goal : undefined;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -516,11 +526,11 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
         )}
         {view === 'dashboard' && (
           <div className="space-y-6">
-            {progress.studyPlan && progress.studyPlan.category === category && visibleTopics.length < currentTopics.length && (
+            {activePlan && activePlan.category === category && visibleTopics.length < currentTopics.length && (
               <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center gap-3">
                 <Lock className="w-5 h-5 text-indigo-600" />
                 <div className="text-sm text-indigo-900">
-                  <span className="font-bold">Modo Focado:</span> Exibindo apenas os tópicos presentes no seu Plano de Estudos: <strong>{progress.studyPlan.goal}</strong>.
+                  <span className="font-bold">Modo Focado ({activePlan.title}):</span> Exibindo apenas os tópicos presentes no seu Plano de Estudos.
                 </div>
               </div>
             )}

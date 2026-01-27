@@ -134,6 +134,8 @@ export interface StudyWeek {
 }
 
 export interface StudyPlan {
+  id: string; // Unique identifier for the plan
+  title: string; // User defined name (e.g., "Edital PF 2024")
   category: 'math' | 'concursos'; // Identifica o módulo do plano
   goal: string; // ex: "Passar na ESA", "Aprender para Escola"
   deadline: string; // ISO Date
@@ -146,11 +148,14 @@ export interface StudyPlan {
 export interface UserProgress {
   hasCompletedPlacement: boolean; 
   assignedCourses: string[]; // IDs dos cursos liberados pelo admin (ex: 'math', 'concursos')
-  studyPlan?: StudyPlan; // O plano adaptativo gerado
+  studyPlans: StudyPlan[]; // Lista de planos (Múltiplos planos permitidos)
+  activePlanId?: string; // ID do plano atualmente selecionado na interface
   skills: { [key: string]: SkillState }; 
   history: Interaction[];
   flashcards: Flashcard[]; 
   favorites: Question[]; 
+  /** @deprecated use studyPlans instead */
+  studyPlan?: StudyPlan; 
 }
 
 export interface GraphNode {

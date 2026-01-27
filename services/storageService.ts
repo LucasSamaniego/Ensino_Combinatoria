@@ -1,5 +1,5 @@
 
-import { UserProgress, TopicId, SkillState } from '../types';
+import { UserProgress, TopicId, SkillState, StudyPlan } from '../types';
 import { TOPICS_DATA, DEFAULT_BKT_PARAMS } from '../constants';
 import { api } from './api';
 
@@ -40,8 +40,44 @@ export const getEmptyProgress = (): UserProgress => {
     skills, 
     history: [],
     flashcards: [],
-    favorites: []
+    favorites: [],
+    studyPlans: [] // Start with empty array
   };
+};
+
+/**
+ * Helper: Migra estruturas antigas (single studyPlan) para array (studyPlans)
+ */
+const migrateData = (data: any): UserProgress => {
+  if (!data) return getEmptyProgress();
+
+  // Garante array de cursos
+  if (!data.assignedCourses) data.assignedCourses = [];
+  
+  // Garante array de favoritos
+  if (!data.favorites) data.favorites = [];
+
+  // Garante array de planos (Migração Principal)
+  if (!data.studyPlans) {
+    data.studyPlans = [];
+    // Se existir um plano antigo legado, migra para o array
+    if (data.studyPlan) {
+      // Adiciona ID se não tiver
+      if (!data.studyPlan.id) {
+        data.studyPlan.id = 'legacy_plan_' + Date.now();
+      }
+      // Adiciona título se não tiver
+      if (!data.studyPlan.title) {
+        data.studyPlan.title = data.studyPlan.category === 'math' ? 'Plano de Matemática' : 'Plano de Concurso';
+      }
+      data.studyPlans.push(data.studyPlan);
+      // Define como ativo por padrão
+      data.activePlanId = data.studyPlan.id;
+      delete data.studyPlan; // Remove campo legado para limpeza
+    }
+  }
+
+  return data as UserProgress;
 };
 
 // Salva o progresso via API (MySQL)
@@ -57,31 +93,34 @@ export const saveUserProgress = async (userId: string, progress: UserProgress): 
 
 // Carrega o progresso via API (MySQL)
 export const loadUserProgress = async (userId: string): Promise<UserProgress> => {
+  let loadedData: any = null;
+
   // 1. Tenta API
   try {
     const remoteData = await api.loadProgress(userId);
     if (remoteData) {
-      // Migrações defensivas
-      if (!remoteData.favorites) remoteData.favorites = [];
-      if (!remoteData.assignedCourses) remoteData.assignedCourses = []; // Garante array
-      return remoteData;
+      loadedData = remoteData;
     }
   } catch (error) {
     console.warn('API offline or user not found, checking local storage.');
   }
 
-  // 2. Fallback LocalStorage
-  try {
-    const key = `${STORAGE_PREFIX}${userId}`;
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (!parsed.favorites) parsed.favorites = [];
-      if (!parsed.assignedCourses) parsed.assignedCourses = [];
-      return parsed;
+  // 2. Fallback LocalStorage se API falhar ou não tiver dados
+  if (!loadedData) {
+    try {
+      const key = `${STORAGE_PREFIX}${userId}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        loadedData = JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load local progress', error);
     }
-  } catch (error) {
-    console.error('Failed to load local progress', error);
+  }
+
+  // 3. Aplica migração e retorna (ou retorna vazio se nada encontrado)
+  if (loadedData) {
+    return migrateData(loadedData);
   }
 
   return getEmptyProgress();
