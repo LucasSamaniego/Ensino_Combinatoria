@@ -3,16 +3,18 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 import { UserProgress } from '../types';
-import { ShieldCheck, UserCheck, Book, Save, Loader2, Search } from 'lucide-react';
-import { loadUserProgress, saveUserProgress, getEmptyProgress, findUserIdByEmail } from '../services/storageService';
+import { ShieldCheck, UserCheck, Book, Save, Loader2, Search, UserPlus } from 'lucide-react';
+import { loadUserProgress, saveUserProgress, getEmptyProgress, findUserIdByEmail, savePendingPermission } from '../services/storageService';
 
 const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const { user } = useAuth();
   const [targetInput, setTargetInput] = useState(''); // Can be Email or ID
   const [targetUserProgress, setTargetUserProgress] = useState<UserProgress | null>(null);
-  const [targetUserId, setTargetUserId] = useState(''); // Resolved ID
+  const [targetUserId, setTargetUserId] = useState(''); // Resolved ID or 'PENDING_USER'
+  const [targetUserEmail, setTargetUserEmail] = useState(''); // Store email for pending logic
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [isPendingMode, setIsPendingMode] = useState(false);
 
   const handleSearch = async () => {
     if (!targetInput) return;
@@ -20,27 +22,34 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     setMsg('');
     setTargetUserProgress(null);
     setTargetUserId('');
+    setTargetUserEmail('');
+    setIsPendingMode(false);
 
     let foundId = targetInput.trim();
+    let isEmail = foundId.includes('@');
 
-    // Check if input looks like an email
-    if (foundId.includes('@')) {
+    // 1. Try to find existing user
+    if (isEmail) {
        const resolvedId = await findUserIdByEmail(foundId);
        if (resolvedId) {
          foundId = resolvedId;
          setMsg(`Usuário encontrado: ${resolvedId}`);
        } else {
-         setMsg('Nenhum usuário encontrado com este e-mail (verifique se ele já fez login pelo menos uma vez).');
+         // USER NOT FOUND CASE
+         setMsg('Usuário não registrado no sistema.');
+         // Enable Pre-Auth Mode
+         setTargetUserId('PENDING_USER');
+         setTargetUserEmail(targetInput.trim());
+         setIsPendingMode(true);
+         setTargetUserProgress({ ...getEmptyProgress(), email: targetInput.trim() });
          setLoading(false);
          return;
        }
     }
 
+    // 2. Load Existing User
     try {
       const data = await loadUserProgress(foundId);
-      // Se loadUserProgress retornar vazio (default) e não tínhamos certeza que o usuário existia, avisamos
-      // Mas loadUserProgress retorna "Empty" se não achar.
-      // Uma heurística simples: se assignedCourses estiver vazio e history vazio, pode ser um user novo ou inexistente.
       setTargetUserProgress(data);
       setTargetUserId(foundId);
     } catch (e) {
@@ -64,8 +73,17 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const handleSave = async () => {
     if (!targetUserProgress || !targetUserId) return;
     setLoading(true);
-    await saveUserProgress(targetUserId, targetUserProgress);
-    setMsg('Permissões atualizadas com sucesso!');
+
+    if (isPendingMode && targetUserId === 'PENDING_USER') {
+       // Save to Pending Permissions
+       savePendingPermission(targetUserEmail, targetUserProgress.assignedCourses);
+       setMsg(`Sucesso! As permissões foram salvas e serão aplicadas automaticamente quando ${targetUserEmail} fizer login.`);
+    } else {
+       // Save to Existing User
+       await saveUserProgress(targetUserId, targetUserProgress);
+       setMsg('Permissões atualizadas com sucesso para o usuário existente!');
+    }
+    
     setLoading(false);
   };
 
@@ -105,14 +123,31 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
              </button>
            </div>
 
-           {msg && <div className={`p-4 mb-6 rounded-lg text-sm font-bold ${msg.includes('sucesso') || msg.includes('encontrado') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{msg}</div>}
+           {msg && <div className={`p-4 mb-6 rounded-lg text-sm font-bold ${msg.includes('Sucesso') || msg.includes('sucesso') || msg.includes('encontrado') ? 'bg-green-100 text-green-800' : isPendingMode ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+             {msg}
+           </div>}
 
            {targetUserProgress && targetUserId && (
              <div className="animate-in fade-in slide-in-from-bottom-4 space-y-8">
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 font-mono">
-                  <span>ID: {targetUserId}</span>
-                  {targetUserProgress.email && <span className="ml-4">Email: {targetUserProgress.email}</span>}
+                <div className={`flex items-center justify-between px-4 py-3 border rounded-lg ${isPendingMode ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center gap-2 text-sm font-mono text-slate-600">
+                     {isPendingMode ? (
+                        <>
+                           <UserPlus className="w-5 h-5 text-amber-500" /> 
+                           <span className="font-bold text-amber-700">Modo Pré-Autorização (Novo Aluno)</span>
+                        </>
+                     ) : (
+                        <><span>ID: {targetUserId}</span></>
+                     )}
+                  </div>
+                  {targetUserProgress.email && <span className="text-sm font-bold text-slate-700">{targetUserProgress.email}</span>}
                 </div>
+                
+                {isPendingMode && (
+                   <p className="text-sm text-slate-500">
+                      Este usuário ainda não entrou na plataforma. Defina os cursos abaixo e eles serão liberados <b>automaticamente</b> no primeiro login.
+                   </p>
+                )}
 
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
                    <h3 className="flex items-center gap-2 font-bold text-slate-700 mb-4">
@@ -159,7 +194,7 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg"
                    >
                      {loading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5" />}
-                     Salvar Alterações
+                     {isPendingMode ? 'Salvar Pré-Autorização' : 'Salvar Alterações'}
                    </button>
                 </div>
              </div>

@@ -24,7 +24,7 @@ import AdminDashboard from './components/AdminDashboard';
 import StudyPlanSetup from './components/StudyPlanSetup';
 import StudyPathTimeline from './components/StudyPathTimeline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { loadUserProgress, saveUserProgress, getEmptyProgress } from './services/storageService';
+import { loadUserProgress, saveUserProgress, getEmptyProgress, getPendingPermissions, clearPendingPermission } from './services/storageService';
 import { UserProgress, StudyPlan } from './types';
 
 type ViewState = 'hub' | 'admin' | 'plan_setup' | 'subject_math' | 'subject_concursos' | 'module_active' | 'online_classroom';
@@ -46,9 +46,25 @@ const MainApp: React.FC = () => {
       if (user) {
         let progress = await loadUserProgress(user.uid);
         
-        // AUTO-CORRECTION: Save email to progress if missing, to allow Admin Search by Email
+        let hasChanges = false;
+
+        // 1. AUTO-CORRECTION: Save email to progress if missing
         if (progress.email !== user.email) {
           progress = { ...progress, email: user.email };
+          hasChanges = true;
+        }
+
+        // 2. CHECK PENDING PERMISSIONS (Admin Pre-Authorization)
+        const pendingCourses = getPendingPermissions(user.email);
+        if (pendingCourses) {
+           const mergedCourses = Array.from(new Set([...progress.assignedCourses, ...pendingCourses]));
+           progress = { ...progress, assignedCourses: mergedCourses };
+           clearPendingPermission(user.email); // Consome a permissão pendente
+           hasChanges = true;
+           console.log("Permissões pendentes aplicadas:", mergedCourses);
+        }
+
+        if (hasChanges) {
           await saveUserProgress(user.uid, progress);
         }
 
@@ -99,6 +115,14 @@ const MainApp: React.FC = () => {
     setWeeklyTheme(theme);
     // Navega para o módulo ativo, mas com uma "subcategoria" especial
     enterModule(activeCategory, 'weekly'); 
+  };
+
+  // Função auxiliar para atualizar o progresso local ao voltar de telas que modificam dados (como Admin)
+  const refreshProgress = async () => {
+    if (user) {
+      const fresh = await loadUserProgress(user.uid);
+      setUserProgress(fresh);
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-mono text-sm uppercase tracking-widest text-slate-400">Loading System...</div>;
@@ -428,7 +452,14 @@ const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900">
       {currentView === 'hub' && renderHub()}
-      {currentView === 'admin' && <AdminDashboard onExit={() => setCurrentView('hub')} />}
+      {currentView === 'admin' && (
+        <AdminDashboard 
+          onExit={() => { 
+            refreshProgress(); 
+            setCurrentView('hub'); 
+          }} 
+        />
+      )}
       {/* Passando activeCategory para StudyPlanSetup */}
       {currentView === 'plan_setup' && userProgress && (
         <StudyPlanSetup 

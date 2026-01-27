@@ -4,6 +4,7 @@ import { TOPICS_DATA, DEFAULT_BKT_PARAMS } from '../constants';
 import { api } from './api';
 
 const STORAGE_PREFIX = 'plataforma_estudos_v1_';
+const PENDING_PERMS_KEY = 'plataforma_pending_permissions';
 
 // Cria estado inicial vazio (Executado no Client)
 export const getEmptyProgress = (): UserProgress => {
@@ -80,22 +81,28 @@ const migrateData = (data: any): UserProgress => {
   return data as UserProgress;
 };
 
-// Salva o progresso via API (MySQL)
+// Salva o progresso
 export const saveUserProgress = async (userId: string, progress: UserProgress): Promise<void> => {
+  // 1. Sempre salva no LocalStorage (Offline-First / Backup)
+  try {
+    localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(progress));
+  } catch (error) {
+    console.error('Failed to save to local storage', error);
+  }
+
+  // 2. Tenta sincronizar com a API (Melhor esforço)
   try {
     await api.syncProgress(userId, progress);
   } catch (error) {
-    console.error('Failed to sync progress to API, saving locally', error);
-    // Fallback LocalStorage
-    localStorage.setItem(`${STORAGE_PREFIX}${userId}`, JSON.stringify(progress));
+    console.warn('API sync skipped or failed');
   }
 };
 
-// Carrega o progresso via API (MySQL)
+// Carrega o progresso via API (MySQL) ou LocalStorage
 export const loadUserProgress = async (userId: string): Promise<UserProgress> => {
   let loadedData: any = null;
 
-  // 1. Tenta API
+  // 1. Tenta API primeiro
   try {
     const remoteData = await api.loadProgress(userId);
     if (remoteData) {
@@ -105,7 +112,7 @@ export const loadUserProgress = async (userId: string): Promise<UserProgress> =>
     console.warn('API offline or user not found, checking local storage.');
   }
 
-  // 2. Fallback LocalStorage se API falhar ou não tiver dados
+  // 2. Fallback LocalStorage
   if (!loadedData) {
     try {
       const key = `${STORAGE_PREFIX}${userId}`;
@@ -118,7 +125,7 @@ export const loadUserProgress = async (userId: string): Promise<UserProgress> =>
     }
   }
 
-  // 3. Aplica migração e retorna (ou retorna vazio se nada encontrado)
+  // 3. Aplica migração
   if (loadedData) {
     return migrateData(loadedData);
   }
@@ -127,16 +134,12 @@ export const loadUserProgress = async (userId: string): Promise<UserProgress> =>
 };
 
 /**
- * NEW: Encontra o ID do usuário através do email (para Admin).
- * Varre o LocalStorage em busca de um objeto que contenha o e-mail correspondente.
+ * Encontra o ID do usuário através do email.
  */
 export const findUserIdByEmail = async (email: string): Promise<string | null> => {
   const normalizedEmail = email.trim().toLowerCase();
   
-  // 1. Tenta API se disponível (Mocked for now in api.ts as likely unavailable in simple backend)
-  // ...
-
-  // 2. Varredura LocalStorage (Modo Demo/Local)
+  // Varredura LocalStorage
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -145,7 +148,6 @@ export const findUserIdByEmail = async (email: string): Promise<string | null> =
         if (raw) {
           const data = JSON.parse(raw);
           if (data.email && data.email.toLowerCase() === normalizedEmail) {
-            // Remove o prefixo para retornar apenas o UID
             return key.replace(STORAGE_PREFIX, '');
           }
         }
@@ -157,3 +159,40 @@ export const findUserIdByEmail = async (email: string): Promise<string | null> =
 
   return null;
 };
+
+/**
+ * NEW: Pending Permissions System (Pre-Provisioning)
+ */
+export const savePendingPermission = (email: string, courses: string[]) => {
+   try {
+     const raw = localStorage.getItem(PENDING_PERMS_KEY);
+     const allPending = raw ? JSON.parse(raw) : {};
+     allPending[email.toLowerCase().trim()] = courses;
+     localStorage.setItem(PENDING_PERMS_KEY, JSON.stringify(allPending));
+   } catch (e) {
+     console.error("Error saving pending permissions", e);
+   }
+}
+
+export const getPendingPermissions = (email: string): string[] | null => {
+   try {
+     const raw = localStorage.getItem(PENDING_PERMS_KEY);
+     if (!raw) return null;
+     const allPending = JSON.parse(raw);
+     return allPending[email.toLowerCase().trim()] || null;
+   } catch (e) {
+     return null;
+   }
+}
+
+export const clearPendingPermission = (email: string) => {
+    try {
+      const raw = localStorage.getItem(PENDING_PERMS_KEY);
+      if (!raw) return;
+      const allPending = JSON.parse(raw);
+      delete allPending[email.toLowerCase().trim()];
+      localStorage.setItem(PENDING_PERMS_KEY, JSON.stringify(allPending));
+    } catch (e) {
+      console.error("Error clearing pending perm", e);
+    }
+}
