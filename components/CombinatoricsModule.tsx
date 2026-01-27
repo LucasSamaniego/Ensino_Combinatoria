@@ -60,6 +60,9 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
   const [progress, setProgress] = useState<UserProgress>(initialProgress || getEmptyProgress());
   
+  // State to hold the current week's accumulated study time
+  const [currentWeeklyMinutes, setCurrentWeeklyMinutes] = useState<number>(0);
+  
   const [customSimulationTopics, setCustomSimulationTopics] = useState<{ id: TopicId; name: string }[] | null>(null);
 
   // Limpeza de segurança ao trocar de categoria/subcategoria
@@ -139,9 +142,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 
   const handleViewRouting = (data: UserProgress) => {
     // 1. PRIORIDADE MÁXIMA: Acesso Direto Semanal (Timeline)
-    // Se o usuário clicou na linha do tempo, ignoramos o status de nivelamento para permitir o estudo.
     if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
-      startWeeklySession();
+      startWeeklySession(data); // Pass current data to calculate time
       return;
     }
 
@@ -160,7 +162,20 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     setView('dashboard');
   };
 
-  const startWeeklySession = () => {
+  const startWeeklySession = (currentData?: UserProgress) => {
+     const dataToUse = currentData || progress;
+     
+     // Calculate accumulated time for this specific week
+     let minutesStudied = 0;
+     const activePlan = dataToUse.studyPlans.find(p => p.id === dataToUse.activePlanId);
+     if (activePlan && weeklyTheme) {
+        const weekData = activePlan.generatedSchedule.find(w => w.theme === weeklyTheme);
+        if (weekData) {
+           minutesStudied = weekData.studiedMinutes || 0;
+        }
+     }
+     setCurrentWeeklyMinutes(minutesStudied);
+
      const weeklyConfig: SimulationConfig = {
        id: 'weekly_auto',
        title: weeklyTheme || 'Meta da Semana',
@@ -258,9 +273,19 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
     if (activePlanIndex !== -1) {
       const activePlan = currentProgress.studyPlans[activePlanIndex];
       
-      // Calculate current week index based on plan start date
-      const daysPassed = Math.floor((Date.now() - activePlan.createdAt) / (1000 * 60 * 60 * 24));
-      const currentWeekIndex = Math.min(Math.floor(daysPassed / 7), activePlan.generatedSchedule.length - 1);
+      // Calculate current week index based on plan start date OR theme matching if available
+      // Here we prioritize matching the exact week if we are in a weekly session
+      let currentWeekIndex = -1;
+      
+      if (subCategory === 'weekly' && weeklyTheme) {
+         currentWeekIndex = activePlan.generatedSchedule.findIndex(w => w.theme === weeklyTheme);
+      } 
+      
+      // Fallback to date based
+      if (currentWeekIndex === -1) {
+         const daysPassed = Math.floor((Date.now() - activePlan.createdAt) / (1000 * 60 * 60 * 24));
+         currentWeekIndex = Math.min(Math.floor(daysPassed / 7), activePlan.generatedSchedule.length - 1);
+      }
       
       const newSchedule = [...activePlan.generatedSchedule];
       if (newSchedule[currentWeekIndex]) {
@@ -584,6 +609,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
             onToggleFavorite={handleToggleFavorite} 
             isFavorite={isFavorite}
             studyGoalContext={studyGoalContext} // PASSING CONTEXT HERE
+            weeklyStudiedMinutes={currentWeeklyMinutes} // Passing the time to the session
           />
         )}
         {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}

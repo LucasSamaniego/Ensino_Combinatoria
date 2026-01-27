@@ -5,7 +5,7 @@ import { generateSimulationQuestions, generateProblem } from '../services/gemini
 import { getDifficultyForMastery, updateHierarchicalKnowledge } from '../services/tracingService';
 import MathRenderer from './MathRenderer';
 import Illustration from './Illustration';
-import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain, Briefcase } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle, XCircle, Clock, Globe, Star, Lightbulb, BookOpen, Send, Building2, Target, TrendingUp, AlertCircle, BarChart2, Brain, Briefcase, Play, Hourglass } from 'lucide-react';
 
 interface SimulationSessionProps {
   config: SimulationConfig;
@@ -17,7 +17,8 @@ interface SimulationSessionProps {
   onUpdateSkill?: (interaction: Interaction) => void; 
   onToggleFavorite?: (question: Question) => void;
   isFavorite?: (id: string) => boolean;
-  studyGoalContext?: string; // New prop for context passing
+  studyGoalContext?: string;
+  weeklyStudiedMinutes?: number; // New prop
 }
 
 type SessionPhase = 'intro' | 'active' | 'summary';
@@ -32,13 +33,14 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   onUpdateSkill,
   onToggleFavorite,
   isFavorite,
-  studyGoalContext
+  studyGoalContext,
+  weeklyStudiedMinutes = 0
 }) => {
   // Modes: 'test' (Classic Simulation) vs 'interactive' (Weekly Study)
   const mode = config.id === 'weekly_auto' ? 'interactive' : 'test';
 
-  // UPDATED: Start 'interactive' (weekly) mode directly in 'active' phase to give direct access
-  const [phase, setPhase] = useState<SessionPhase>(mode === 'interactive' ? 'active' : 'intro');
+  // UPDATED: Revert to 'intro' as default to show the new Dashboard before questions
+  const [phase, setPhase] = useState<SessionPhase>('intro');
   const [initialSkills] = useState<{ [key: string]: SkillState }>(JSON.parse(JSON.stringify(userSkills || {})));
   
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -83,7 +85,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     }
   }, [mode, phase]);
 
-  // UPDATED: Auto-start for Interactive Mode (Weekly) if starting in active phase
+  // Pre-fetch first question for interactive mode if user hits start
   useEffect(() => {
     if (mode === 'interactive' && phase === 'active' && questions.length === 0 && !loading) {
       loadNextInteractiveQuestion(0);
@@ -103,10 +105,6 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
 
   const startInteractiveSession = async () => {
     setPhase('active');
-    // Logic moved to useEffect for auto-start, but kept here for intro button click fallback
-    if (questions.length === 0) {
-      await loadNextInteractiveQuestion(0);
-    }
   };
 
   const loadNextInteractiveQuestion = async (topicIdx: number) => {
@@ -247,6 +245,12 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const formatHrsMins = (totalMinutes: number) => {
+    const h = Math.floor(totalMinutes / 60);
+    const m = Math.floor(totalMinutes % 60);
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
+  };
+
   // --- RENDERERS ---
 
   if (loading && questions.length === currentIndex) {
@@ -268,39 +272,60 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   if (phase === 'intro') {
     return (
       <div className="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl border border-indigo-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+        {/* Header Hero */}
         <div className="bg-indigo-900 p-8 text-white relative overflow-hidden">
-           <div className="relative z-10">
-              <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
-                 <Target className="w-8 h-8 text-indigo-400" />
-                 {config.title}
-              </h2>
-              <p className="text-indigo-200 text-lg">{config.description}</p>
+           <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
+                   <Target className="w-8 h-8 text-indigo-400" />
+                   {config.title}
+                </h2>
+                <p className="text-indigo-200 text-lg max-w-lg">{config.description}</p>
+              </div>
+              
+              {/* Weekly Time Card */}
+              {mode === 'interactive' && (
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl min-w-[160px] text-center">
+                   <div className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-1 flex items-center justify-center gap-2">
+                     <Hourglass className="w-3 h-3" /> Tempo da Semana
+                   </div>
+                   <div className="text-3xl font-black text-white">{formatHrsMins(weeklyStudiedMinutes)}</div>
+                </div>
+              )}
            </div>
         </div>
 
         <div className="p-8">
-           <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+           <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-lg">
              <BarChart2 className="w-5 h-5 text-indigo-600" />
-             Habilidades em Foco neste Ciclo
+             Habilidades e Proficiência Atual
            </h3>
 
            <div className="space-y-4 mb-8">
              {availableTopics.map(topic => {
                const startMastery = initialSkills[topic.id]?.masteryProbability || 0.1;
                const percent = Math.round(startMastery * 100);
+               const difficulty = getDifficultyForMastery(startMastery);
+               
+               let barColor = 'bg-indigo-500';
+               if (percent < 30) barColor = 'bg-red-500';
+               else if (percent < 60) barColor = 'bg-yellow-500';
+               else if (percent < 85) barColor = 'bg-green-500';
+               else barColor = 'bg-purple-500';
+
                return (
-                 <div key={topic.id} className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="flex-grow">
-                       <div className="flex justify-between mb-1">
-                          <span className="font-bold text-slate-700">{topic.name}</span>
-                          <span className="text-xs font-bold text-slate-400">{percent}% Domínio</span>
+                 <div key={topic.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex justify-between items-center mb-3">
+                       <div>
+                          <h4 className="font-bold text-slate-800 text-base">{topic.name}</h4>
+                          <span className="text-xs text-slate-500 font-medium">Nível Detectado: <span className="uppercase">{difficulty}</span></span>
                        </div>
-                       <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                          <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000" style={{ width: `${percent}%` }}></div>
+                       <div className="text-right">
+                          <span className="text-2xl font-black text-slate-700">{percent}%</span>
                        </div>
                     </div>
-                    <div className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">
-                       3 Questões
+                    <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
+                       <div className={`${barColor} h-full rounded-full transition-all duration-1000`} style={{ width: `${percent}%` }}></div>
                     </div>
                  </div>
                );
@@ -311,8 +336,12 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
              onClick={startInteractiveSession}
              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-1"
            >
-             Iniciar Treinamento <ArrowRight className="w-5 h-5" />
+             <Play className="w-5 h-5 fill-white" /> Iniciar Treinamento
            </button>
+           
+           <div className="text-center mt-4">
+              <button onClick={onCancel} className="text-sm text-slate-400 hover:text-red-500 font-bold">Voltar</button>
+           </div>
         </div>
       </div>
     );
