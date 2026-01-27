@@ -1,6 +1,6 @@
 
 import { BKTParams, Difficulty, SkillState, Interaction } from '../types';
-import { EXPECTED_TIME } from '../constants';
+import { EXPECTED_TIME, DEFAULT_BKT_PARAMS } from '../constants';
 
 /**
  * Calculates BKT update with Time Analysis adjustments.
@@ -62,6 +62,19 @@ const calculateBKT = (
 };
 
 /**
+ * Creates a default skill state for a new topic/subskill
+ */
+const createDefaultSkill = (id: string, isParent: boolean): SkillState => ({
+  id,
+  name: 'New Skill', // Name should be updated by caller if possible, but this prevents crash
+  isParent,
+  masteryProbability: DEFAULT_BKT_PARAMS.p_init,
+  totalAttempts: 0,
+  correctStreak: 0,
+  averageResponseTime: 0
+});
+
+/**
  * Hierarchical Update:
  * 1. Updates the specific SubSkill.
  * 2. Updates the Parent Topic based on the SubSkill result, but with diluted parameters (partial evidence).
@@ -76,50 +89,56 @@ export const updateHierarchicalKnowledge = (
   const { subSkillId, topicId, isCorrect, timeSpentSeconds, difficulty } = interaction;
 
   // 1. Update SubSkill
-  const subSkill = newSkills[subSkillId];
-  if (subSkill) {
-    const newSubMastery = calculateBKT(
-      subSkill.masteryProbability, 
-      isCorrect, 
-      timeSpentSeconds, 
-      difficulty, 
-      baseParams
-    );
-
-    newSkills[subSkillId] = {
-      ...subSkill,
-      masteryProbability: newSubMastery,
-      totalAttempts: subSkill.totalAttempts + 1,
-      correctStreak: isCorrect ? subSkill.correctStreak + 1 : 0,
-      averageResponseTime: (subSkill.averageResponseTime * subSkill.totalAttempts + timeSpentSeconds) / (subSkill.totalAttempts + 1)
-    };
+  // If subSkill doesn't exist, create it on the fly
+  let subSkill = newSkills[subSkillId];
+  if (!subSkill) {
+    subSkill = createDefaultSkill(subSkillId, false);
   }
+
+  const newSubMastery = calculateBKT(
+    subSkill.masteryProbability, 
+    isCorrect, 
+    timeSpentSeconds, 
+    difficulty, 
+    baseParams
+  );
+
+  newSkills[subSkillId] = {
+    ...subSkill,
+    masteryProbability: newSubMastery,
+    totalAttempts: subSkill.totalAttempts + 1,
+    correctStreak: isCorrect ? subSkill.correctStreak + 1 : 0,
+    averageResponseTime: (subSkill.averageResponseTime * subSkill.totalAttempts + timeSpentSeconds) / (subSkill.totalAttempts + 1)
+  };
 
   // 2. Update Parent Topic (Hierarchical Link)
   // We treat the evidence on a subskill as "noisy" evidence for the whole topic
-  const parentTopic = newSkills[topicId];
-  if (parentTopic) {
-    const parentParams = {
-      ...baseParams,
-      p_slip: baseParams.p_slip + 0.1, // Higher uncertainty for parent
-      p_guess: baseParams.p_guess + 0.1
-    };
-
-    const newParentMastery = calculateBKT(
-      parentTopic.masteryProbability,
-      isCorrect,
-      timeSpentSeconds,
-      difficulty,
-      parentParams
-    );
-
-    newSkills[topicId] = {
-      ...parentTopic,
-      masteryProbability: newParentMastery,
-      totalAttempts: parentTopic.totalAttempts + 1,
-      correctStreak: isCorrect ? parentTopic.correctStreak + 1 : 0
-    };
+  let parentTopic = newSkills[topicId];
+  if (!parentTopic) {
+    // If parent doesn't exist (e.g. Custom Weekly Topic), create it
+    parentTopic = createDefaultSkill(topicId, true);
   }
+
+  const parentParams = {
+    ...baseParams,
+    p_slip: baseParams.p_slip + 0.1, // Higher uncertainty for parent
+    p_guess: baseParams.p_guess + 0.1
+  };
+
+  const newParentMastery = calculateBKT(
+    parentTopic.masteryProbability,
+    isCorrect,
+    timeSpentSeconds,
+    difficulty,
+    parentParams
+  );
+
+  newSkills[topicId] = {
+    ...parentTopic,
+    masteryProbability: newParentMastery,
+    totalAttempts: parentTopic.totalAttempts + 1,
+    correctStreak: isCorrect ? parentTopic.correctStreak + 1 : 0
+  };
 
   return newSkills;
 };

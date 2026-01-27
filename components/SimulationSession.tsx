@@ -65,6 +65,32 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   // Stats for Summary
   const [sessionStats, setSessionStats] = useState<{ [topicId: string]: { correct: number, total: number } }>({});
 
+  // Initialize Local Skills for topics that might be new/custom (e.g. from Weekly Plan)
+  // This ensures BKT update has a target to write to, and Summary shows progress.
+  useEffect(() => {
+    const missingSkills: { [key: string]: SkillState } = {};
+    let hasMissing = false;
+
+    availableTopics.forEach(t => {
+      if (!localSkills[t.id]) {
+        missingSkills[t.id] = {
+          id: t.id,
+          name: t.name,
+          isParent: true,
+          masteryProbability: 0.1, // Default start for new topics
+          totalAttempts: 0,
+          correctStreak: 0,
+          averageResponseTime: 0
+        };
+        hasMissing = true;
+      }
+    });
+
+    if (hasMissing) {
+      setLocalSkills(prev => ({ ...prev, ...missingSkills }));
+    }
+  }, [availableTopics]);
+
   // Initialize for Classic Mode
   useEffect(() => {
     if (mode === 'test' && phase === 'active') {
@@ -316,7 +342,8 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
 
            <div className="space-y-4 mb-8">
              {availableTopics.map(topic => {
-               const startMastery = initialSkills[topic.id]?.masteryProbability || 0.1;
+               // Use localSkills here to reflect initialized values if missing
+               const startMastery = localSkills[topic.id]?.masteryProbability || 0.1;
                const percent = Math.round(startMastery * 100);
                const difficulty = getDifficultyForMastery(startMastery);
                
@@ -424,6 +451,7 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
            
            <div className="divide-y divide-slate-100">
               {availableTopics.map(topic => {
+                 // Check initialSkills for start value. If topic didn't exist in initialSkills, assume default 0.1
                  const startM = initialSkills[topic.id]?.masteryProbability || 0.1;
                  const endM = localSkills[topic.id]?.masteryProbability || 0.1;
                  const startP = Math.round(startM * 100);
@@ -485,7 +513,10 @@ const SimulationSession: React.FC<SimulationSessionProps> = ({
   const currentQ = questions[currentIndex];
   if (!currentQ) return null; 
 
-  // --- 2. ACTIVE PHASE (INTERACTIVE) ---
+  // ... (Active phase renderer remains unchanged)
+  // ... (Classic test renderer remains unchanged)
+  
+  // Re-declare for context below
   if (mode === 'interactive') {
     const isCurrentFav = isFavorite ? isFavorite(currentQ.id) : false;
     const currentTopicName = availableTopics[currentTopicIdx]?.name || 'Revisão Geral';

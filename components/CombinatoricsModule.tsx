@@ -1,166 +1,96 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   UserProgress, 
   TopicId, 
-  Interaction,
-  SimulationConfig,
-  Question,
-  Difficulty,
-  StudyPlan
+  Difficulty, 
+  SimulationConfig, 
+  SkillState, 
+  Question, 
+  Interaction, 
+  Flashcard 
 } from '../types';
 import { 
-  BASIC_MATH_TOPICS,
-  COMBINATORICS_TOPICS,
-  MATH_TOPICS,
-  CONCURSOS_TOPICS
+  TOPICS_DATA, 
+  BASIC_MATH_TOPICS, 
+  COMBINATORICS_TOPICS, 
+  CONCURSOS_TOPICS 
 } from '../constants';
-import { updateHierarchicalKnowledge } from '../services/tracingService';
-import { generateFlashcards } from '../services/geminiService';
-import { getCardsDue, calculateNextReview, ReviewGrade } from '../services/srsService';
-import { loadUserProgress, saveUserProgress, getEmptyProgress } from '../services/storageService';
-import { useAuth } from '../contexts/AuthContext';
+import { 
+  updateHierarchicalKnowledge 
+} from '../services/tracingService';
+import { 
+  generateFlashcards 
+} from '../services/geminiService';
+import { 
+  getCardsDue, 
+  calculateNextReview, 
+  ReviewGrade 
+} from '../services/srsService';
 
 import SkillCard from './SkillCard';
 import PracticeSession from './PracticeSession';
-import ReportView from './ReportView';
-import PlacementTest from './PlacementTest';
 import SimulationHub from './SimulationHub';
 import SimulationSession from './SimulationSession';
 import FlashcardSession from './FlashcardSession';
+import ReportView from './ReportView';
 import FavoritesView from './FavoritesView';
-import StudyPlanSetup from './StudyPlanSetup';
+import PlacementTest from './PlacementTest';
 
-import { LayoutDashboard, Target, BarChart2, Brain, ArrowLeft, Loader2, Book, Scale, GraduationCap, Star, Lock, Sprout, ArrowRight } from 'lucide-react';
+import { 
+  Trophy, 
+  Target, 
+  BookOpen, 
+  BarChart2, 
+  Star, 
+  ArrowLeft, 
+  Brain, 
+  Dumbbell 
+} from 'lucide-react';
 
 interface CombinatoricsModuleProps {
-  onExit: () => void;
   category: 'math' | 'concursos';
-  subCategory?: string; // 'basic' | 'combinatorics' | 'weekly' | undefined
-  weeklyTopics?: string[]; // Topics from the weekly plan
-  weeklyTheme?: string;
-  initialProgress?: UserProgress; // New prop to prevent state loss
-  onUpdateProgress?: (progress: UserProgress) => void;
+  subCategory?: string;
+  weeklyTopics: string[];
+  weeklyTheme: string;
+  initialProgress: UserProgress;
+  onUpdateProgress: (p: UserProgress) => void;
+  onExit: () => void;
 }
 
 const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({ 
-  onExit, 
   category, 
   subCategory, 
   weeklyTopics, 
-  weeklyTheme,
-  initialProgress,
-  onUpdateProgress 
+  weeklyTheme, 
+  initialProgress, 
+  onUpdateProgress, 
+  onExit 
 }) => {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'practice' | 'report' | 'placement_intro' | 'placement' | 'plan_setup_internal' | 'simulations' | 'simulation_session' | 'flashcards' | 'favorites'>('dashboard');
-  
-  const [activeTopic, setActiveTopic] = useState<TopicId | null>(null);
+  const [view, setView] = useState<'list' | 'practice' | 'simulation' | 'simulation_session' | 'flashcards' | 'report' | 'favorites' | 'placement'>('list');
+  const [selectedTopicId, setSelectedTopicId] = useState<TopicId | null>(null);
   const [activeSimulation, setActiveSimulation] = useState<SimulationConfig | null>(null);
-  const [progress, setProgress] = useState<UserProgress>(initialProgress || getEmptyProgress());
+  const [currentWeeklyMinutes, setCurrentWeeklyMinutes] = useState(0);
+  const [customSimulationTopics, setCustomSimulationTopics] = useState<{id: TopicId, name: string}[]>([]);
   
-  // State to hold the current week's accumulated study time
-  const [currentWeeklyMinutes, setCurrentWeeklyMinutes] = useState<number>(0);
-  
-  const [customSimulationTopics, setCustomSimulationTopics] = useState<{ id: TopicId; name: string }[] | null>(null);
+  // Use initialProgress directly
+  const progress = initialProgress;
 
-  // Limpeza de segurança ao trocar de categoria/subcategoria
+  // Determine which topics to show based on category/subCategory
+  const getTopics = () => {
+    if (category === 'concursos') return CONCURSOS_TOPICS;
+    if (subCategory === 'basic') return BASIC_MATH_TOPICS;
+    if (subCategory === 'combinatorics') return COMBINATORICS_TOPICS;
+    return [...BASIC_MATH_TOPICS, ...COMBINATORICS_TOPICS];
+  };
+
+  const topics = getTopics();
+
+  // Effect to handle 'weekly' subCategory entry
   useEffect(() => {
-    setActiveTopic(null);
-    setActiveSimulation(null);
-    setCustomSimulationTopics(null);
-    // Se o user tinha um view de 'practice' ativo, forçamos volta ao dashboard para evitar erro
-    if (view === 'practice' || view === 'simulation_session') {
-      setView('dashboard');
+    if (subCategory === 'weekly') {
+      startWeeklySession();
     }
-  }, [category, subCategory]);
-
-  const getCurrentTopics = () => {
-    if (category === 'math') {
-      if (subCategory === 'basic') return BASIC_MATH_TOPICS;
-      if (subCategory === 'combinatorics') return COMBINATORICS_TOPICS;
-      return MATH_TOPICS; 
-    }
-    return CONCURSOS_TOPICS;
-  };
-
-  const currentTopics = getCurrentTopics();
-  let moduleTitle = '';
-  
-  if (subCategory === 'basic') moduleTitle = 'Matemática Básica';
-  else if (subCategory === 'combinatorics') moduleTitle = 'Análise Combinatória';
-  else if (subCategory === 'weekly') moduleTitle = 'Plano Semanal';
-  else moduleTitle = category === 'math' ? 'Matemática' : 'Concursos';
-
-  const getVisibleTopics = () => {
-    if (subCategory === 'weekly' || subCategory === 'basic') return currentTopics;
-
-    // Use Active Plan based on ID
-    const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
-
-    if (activePlan && activePlan.category === category) {
-      const planTopics = new Set(
-        activePlan.generatedSchedule.flatMap(w => w.topicsToStudy)
-      );
-      return currentTopics.filter(t => planTopics.has(t.name));
-    }
-
-    return currentTopics;
-  };
-
-  const visibleTopics = getVisibleTopics();
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initProgress = async () => {
-      if (initialProgress) {
-         if (isMounted) {
-            setProgress(initialProgress);
-            handleViewRouting(initialProgress);
-            setLoading(false);
-         }
-         return;
-      }
-
-      if (user) {
-        setLoading(true);
-        const data = await loadUserProgress(user.uid);
-        if (isMounted) {
-          setProgress(data);
-          handleViewRouting(data);
-          setLoading(false);
-        }
-      }
-    };
-
-    initProgress();
-
-    return () => { isMounted = false; };
-  }, [user, category, subCategory, initialProgress]);
-
-  const handleViewRouting = (data: UserProgress) => {
-    // 1. PRIORIDADE MÁXIMA: Acesso Direto Semanal (Timeline)
-    if (subCategory === 'weekly' && weeklyTopics && weeklyTopics.length > 0) {
-      startWeeklySession(data); // Pass current data to calculate time
-      return;
-    }
-
-    // 2. Fluxo Normal de Onboarding
-    if (!data.hasCompletedPlacement) {
-      setView('placement_intro');
-      return;
-    }
-
-    // 3. Se tem placement mas não tem nenhum plano, manda pro setup
-    if (data.hasCompletedPlacement && data.studyPlans.length === 0) {
-       setView('plan_setup_internal');
-       return;
-    }
-
-    setView('dashboard');
-  };
+  }, [subCategory]);
 
   const startWeeklySession = (currentData?: UserProgress) => {
      const dataToUse = currentData || progress;
@@ -185,12 +115,33 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
        difficulty: Difficulty.INTERMEDIATE 
      };
      
-     // Robust Mapping: If exact topic not found, create a custom topic object to ensure AI generation works
+     // Robust Mapping: Try to find existing topic ID from name (Fuzzy Match)
      const topicsObjects = (weeklyTopics || []).map((tName, i) => {
-        const found = currentTopics.find(ct => ct.name === tName);
+        const normalizedInput = tName.toLowerCase().trim();
+        
+        // 1. Exact Match
+        let found = TOPICS_DATA.find(ct => ct.name.toLowerCase() === normalizedInput);
+        
+        // 2. Partial Match
+        if (!found) {
+           found = TOPICS_DATA.find(ct => 
+             ct.name.toLowerCase().includes(normalizedInput) || 
+             normalizedInput.includes(ct.name.toLowerCase())
+           );
+        }
+
+        // 3. Keyword Match
+        if (!found) {
+           if (normalizedInput.includes("adm")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_ADMINISTRATIVO);
+           if (normalizedInput.includes("const")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_CONSTITUCIONAL);
+           if (normalizedInput.includes("penal")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_PENAL);
+           if (normalizedInput.includes("lógica") || normalizedInput.includes("logica")) found = TOPICS_DATA.find(ct => ct.id === TopicId.RACIOCINIO_LOGICO);
+           if (normalizedInput.includes("combinatória")) found = TOPICS_DATA.find(ct => ct.id === TopicId.INTRO_COUNTING);
+        }
+
         return {
            id: found ? found.id : `custom_weekly_${i}_${Date.now()}` as TopicId,
-           name: tName
+           name: found ? found.name : tName
         };
      });
 
@@ -199,435 +150,330 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
      setView('simulation_session');
   };
 
-  useEffect(() => {
-    if (user && !loading) {
-      saveUserProgress(user.uid, progress).catch(console.error);
-    }
-  }, [progress, user, loading]);
-
-  const handleStartFromZero = () => {
-    const newProgress = { ...progress, hasCompletedPlacement: true };
-    setProgress(newProgress);
-    setView('plan_setup_internal'); 
-  };
-
-  const handlePlacementComplete = (results: Interaction[]) => {
-    const correctCount = results.filter(r => r.isCorrect).length;
-    const initialMastery = correctCount >= 3 ? 0.65 : (correctCount >= 2 ? 0.45 : 0.15); 
-
-    const newSkills = { ...progress.skills };
-      
-    currentTopics.forEach(topic => {
-      const currentM = newSkills[topic.id].masteryProbability;
-      const newM = Math.max(currentM, initialMastery);
-
-      newSkills[topic.id].masteryProbability = newM;
-      topic.subSkills.forEach(sub => {
-        newSkills[sub.id].masteryProbability = newM;
-      });
-    });
-
-    const newProgress: UserProgress = {
-      ...progress,
-      hasCompletedPlacement: true,
-      skills: newSkills,
-      history: [...progress.history, ...results]
-    };
-
-    setProgress(newProgress);
-    setView('plan_setup_internal');
-  };
-
-  const handlePlanCreatedInternal = async (plan: StudyPlan) => {
-    const updatedProgress = { 
-      ...progress, 
-      studyPlans: [...progress.studyPlans, plan], 
-      activePlanId: plan.id 
-    };
-    setProgress(updatedProgress);
-    if (onUpdateProgress) onUpdateProgress(updatedProgress);
-    setView('dashboard');
-  };
-
-  const handleTopicSelect = async (id: TopicId) => {
-    setActiveTopic(id);
-    const hasCards = progress.flashcards.some(c => c.topicId === id);
-    if (!hasCards) {
-      generateFlashcards(id).then(newCards => {
-        const updated = {
-          ...progress,
-          flashcards: [...progress.flashcards, ...newCards]
-        };
-        setProgress(updated);
-        if (onUpdateProgress) onUpdateProgress(updated);
-      });
-    }
+  const handleSkillClick = (id: TopicId) => {
+    setSelectedTopicId(id);
     setView('practice');
   };
 
-  // Helper function to update study plan time (UPDATED for multi-plan)
-  const updateStudyPlanTime = (currentProgress: UserProgress, timeSeconds: number) => {
-    // Find active plan
-    const activePlanIndex = currentProgress.studyPlans.findIndex(p => p.id === currentProgress.activePlanId);
-    
-    if (activePlanIndex !== -1) {
-      const activePlan = currentProgress.studyPlans[activePlanIndex];
-      
-      // Calculate current week index based on plan start date OR theme matching if available
-      // Here we prioritize matching the exact week if we are in a weekly session
-      let currentWeekIndex = -1;
-      
-      if (subCategory === 'weekly' && weeklyTheme) {
-         currentWeekIndex = activePlan.generatedSchedule.findIndex(w => w.theme === weeklyTheme);
-      } 
-      
-      // Fallback to date based
-      if (currentWeekIndex === -1) {
-         const daysPassed = Math.floor((Date.now() - activePlan.createdAt) / (1000 * 60 * 60 * 24));
-         currentWeekIndex = Math.min(Math.floor(daysPassed / 7), activePlan.generatedSchedule.length - 1);
-      }
-      
-      const newSchedule = [...activePlan.generatedSchedule];
-      if (newSchedule[currentWeekIndex]) {
-        const currentMinutes = newSchedule[currentWeekIndex].studiedMinutes || 0;
-        newSchedule[currentWeekIndex] = {
-          ...newSchedule[currentWeekIndex],
-          studiedMinutes: currentMinutes + (timeSeconds / 60)
-        };
-        
-        const updatedPlans = [...currentProgress.studyPlans];
-        updatedPlans[activePlanIndex] = {
-          ...activePlan,
-          generatedSchedule: newSchedule
-        };
-
-        return updatedPlans;
-      }
-    }
-    return currentProgress.studyPlans;
-  };
-
-  const handleInteractionComplete = (interaction: Interaction) => {
-    // 1. Update Knowledge Model
-    const newSkills = updateHierarchicalKnowledge(progress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
-    const newHistory = [...progress.history, interaction];
-    
-    let updated = { ...progress, skills: newSkills, history: newHistory };
-
-    // 2. Update Study Time Tracking
-    const updatedPlans = updateStudyPlanTime(updated, interaction.timeSpentSeconds);
-    if (updatedPlans) {
-      updated = { ...updated, studyPlans: updatedPlans };
-    }
-    
-    setProgress(updated);
-    if (onUpdateProgress) onUpdateProgress(updated);
-  };
-
-  const handleSimulationStart = (config: SimulationConfig) => {
+  const handleSimulationSelect = (config: SimulationConfig) => {
     setActiveSimulation(config);
-    setCustomSimulationTopics(null); 
     setView('simulation_session');
   };
 
-  const handleSimulationComplete = async (interactions: Interaction[]) => {
-    // 1. Consolida o progresso FINAL antes de sair. 
-    // Em modo weekly, o skill update é feito one-by-one (onUpdateSkill), então não re-aplicamos BKT aqui.
-    // Usamos o 'progress' atual que já deve ter as atualizações do BKT.
-    
-    let currentProgress = { ...progress };
-    let totalSimTime = 0;
+  const handlePracticeComplete = (interaction: Interaction) => {
+    // 1. Update BKT
+    const updatedSkills = updateHierarchicalKnowledge(
+      progress.skills,
+      interaction,
+      { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 }
+    );
 
-    interactions.forEach(interaction => {
-       totalSimTime += interaction.timeSpentSeconds;
-       
-       if (subCategory !== 'weekly') { 
-         // Em modos NÃO-interativos, aplicamos o BKT em lote aqui
-         const newSkills = updateHierarchicalKnowledge(currentProgress.skills, interaction, { p_init: 0.1, p_transit: 0.2, p_slip: 0.1, p_guess: 0.2 });
-         const newHistory = [...currentProgress.history, interaction];
-         currentProgress = { ...currentProgress, skills: newSkills, history: newHistory };
-       }
-    });
+    // 2. Add to history
+    const updatedHistory = [...progress.history, interaction];
 
-    // 2. Update Study Plan Time (Batch correction if needed, or cumulative)
-    // No modo weekly, o tempo foi atualizado pergunta por pergunta. 
-    // Para evitar contagem dupla, adicionamos apenas o delta ou, para simplificar, confiamos no onUpdateSkill.
-    // MAS, para garantir consistência em falhas de rede, recalculamos aqui se não for weekly.
-    if (subCategory !== 'weekly') {
-        const updatedPlans = updateStudyPlanTime(currentProgress, totalSimTime);
-        if (updatedPlans) {
-          currentProgress = { ...currentProgress, studyPlans: updatedPlans };
-        }
-    }
+    // 3. Update Progress
+    const newProgress = {
+      ...progress,
+      skills: updatedSkills,
+      history: updatedHistory
+    };
 
-    // 3. Flashcards generation logic for weekly mode
-    if (subCategory === 'weekly') {
-      const topicsPracticed = new Set(interactions.map(i => i.topicId));
-      let newCards = [...currentProgress.flashcards];
-      
-      const promises = Array.from(topicsPracticed).map(async (tId) => {
-        const hasCards = newCards.some(c => c.topicId === tId);
-        if (!hasCards) {
-          try {
-             const generated = await generateFlashcards(tId);
-             return generated;
-          } catch(e) {
-             return [];
-          }
-        }
-        return [];
-      });
-
-      const generatedBatches = await Promise.all(promises);
-      generatedBatches.forEach(batch => {
-        newCards = [...newCards, ...batch];
-      });
-
-      currentProgress = { ...currentProgress, flashcards: newCards };
-    }
-    
-    setProgress(currentProgress);
-    
-    // Força sincronização com App.tsx e Backend
-    if (onUpdateProgress) onUpdateProgress(currentProgress);
-    if (user) saveUserProgress(user.uid, currentProgress);
-    
-    // 4. Navegação
-    if (subCategory === 'weekly') {
-      // Se acabou a semana, sai do módulo
-      onExit();
-    } else {
-      // Se foi simulado avulso, volta pro hub
-      setView('simulations');
-      setActiveSimulation(null);
-    }
+    onUpdateProgress(newProgress);
   };
 
-  const handleCardReview = (cardId: string, grade: ReviewGrade) => {
-    // Estimativa: 30 segundos por carta revisada
-    const estimatedTime = 30; 
-    
-    let updatedProgress = { ...progress };
+  const handleUpdateSkill = (interaction: Interaction) => {
+    // Similar to handlePracticeComplete but for simulations (doesn't exit view)
+    const updatedSkills = updateHierarchicalKnowledge(
+      progress.skills,
+      interaction,
+      { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 }
+    );
 
-    // Update SRS
-    const newDeck = progress.flashcards.map(card => {
-      if (card.id === cardId) {
-        return { ...card, srs: calculateNextReview(card.srs, grade) };
-      }
-      return card;
-    });
-    updatedProgress.flashcards = newDeck;
-
-    // Update Time
-    const updatedPlans = updateStudyPlanTime(updatedProgress, estimatedTime);
-    if (updatedPlans) {
-      updatedProgress.studyPlans = updatedPlans;
+    // Update time tracking if in weekly mode
+    let updatedPlans = progress.studyPlans;
+    if (subCategory === 'weekly' && weeklyTheme) {
+      updatedPlans = progress.studyPlans.map(plan => {
+        if (plan.id === progress.activePlanId) {
+           const newSchedule = plan.generatedSchedule.map(week => {
+             if (week.theme === weeklyTheme) {
+               return { ...week, studiedMinutes: (week.studiedMinutes || 0) + (interaction.timeSpentSeconds / 60) };
+             }
+             return week;
+           });
+           return { ...plan, generatedSchedule: newSchedule };
+        }
+        return plan;
+      });
     }
 
-    setProgress(updatedProgress);
-    if (onUpdateProgress) onUpdateProgress(updatedProgress);
+    onUpdateProgress({
+      ...progress,
+      skills: updatedSkills,
+      history: [...progress.history, interaction],
+      studyPlans: updatedPlans
+    });
+  };
+
+  const handleSimulationComplete = (results: Interaction[]) => {
+    // Batch update history
+    const updatedHistory = [...progress.history, ...results];
+    
+    // Batch update skills (iterate)
+    let currentSkills = { ...progress.skills };
+    results.forEach(interaction => {
+      currentSkills = updateHierarchicalKnowledge(
+        currentSkills,
+        interaction,
+        { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 }
+      );
+    });
+
+    onUpdateProgress({
+      ...progress,
+      skills: currentSkills,
+      history: updatedHistory
+    });
+
+    // Go back to list
+    if (subCategory === 'weekly') {
+      onExit(); // Go back to main timeline if weekly done
+    } else {
+      setView('list');
+    }
   };
 
   const handleToggleFavorite = (question: Question) => {
-    const isFav = progress.favorites.some(q => q.id === question.id);
-    let newFavs;
-    if (isFav) {
-      newFavs = progress.favorites.filter(q => q.id !== question.id);
+    const exists = progress.favorites.some(f => f.id === question.id);
+    let newFavorites;
+    if (exists) {
+      newFavorites = progress.favorites.filter(f => f.id !== question.id);
     } else {
-      newFavs = [question, ...progress.favorites];
+      newFavorites = [...progress.favorites, question];
     }
-    const updated = { ...progress, favorites: newFavs };
-    setProgress(updated);
-    if (onUpdateProgress) onUpdateProgress(updated);
+    onUpdateProgress({ ...progress, favorites: newFavorites });
   };
 
-  const handleRemoveFavorite = (questionId: string) => {
-    const updated = {
-      ...progress,
-      favorites: progress.favorites.filter(q => q.id !== questionId)
-    };
-    setProgress(updated);
-    if (onUpdateProgress) onUpdateProgress(updated);
+  const isFavorite = (id: string) => progress.favorites.some(f => f.id === id);
+
+  const getFlashcardsDue = () => getCardsDue(progress.flashcards);
+
+  const handleFlashcardReview = (cardId: string, grade: ReviewGrade) => {
+    const cardIndex = progress.flashcards.findIndex(c => c.id === cardId);
+    if (cardIndex === -1) return;
+
+    const card = progress.flashcards[cardIndex];
+    const newSRS = calculateNextReview(card.srs, grade);
+    
+    const newFlashcards = [...progress.flashcards];
+    newFlashcards[cardIndex] = { ...card, srs: newSRS };
+
+    onUpdateProgress({ ...progress, flashcards: newFlashcards });
   };
 
-  const isFavorite = (questionId: string) => {
-    return progress.favorites.some(q => q.id === questionId);
+  const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
+  const studyContext = activePlan?.goal || (category === 'concursos' ? "Foco em Concursos Públicos e Bancas Variadas" : "Matemática Geral");
+
+  // --- RENDERING ---
+
+  if (view === 'practice' && selectedTopicId) {
+    const topic = topics.find(t => t.id === selectedTopicId);
+    if (topic) {
+      return (
+        <PracticeSession
+          category={category}
+          topicId={selectedTopicId}
+          topicName={topic.name}
+          topicSubSkills={topic.subSkills}
+          userSkills={progress.skills}
+          onCompleteQuestion={handlePracticeComplete}
+          onBack={() => setView('list')}
+          onToggleFavorite={handleToggleFavorite}
+          isFavorite={isFavorite}
+          studyGoalContext={studyContext}
+        />
+      );
+    }
   }
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" /></div>;
+  if (view === 'simulation_session' && activeSimulation) {
+    const available = subCategory === 'weekly' ? customSimulationTopics : topics;
+    
+    return (
+      <SimulationSession
+        config={activeSimulation}
+        category={category}
+        availableTopics={available}
+        userSkills={progress.skills}
+        onComplete={handleSimulationComplete}
+        onCancel={() => {
+           if (subCategory === 'weekly') onExit();
+           else setView('simulation');
+        }}
+        onUpdateSkill={handleUpdateSkill}
+        onToggleFavorite={handleToggleFavorite}
+        isFavorite={isFavorite}
+        studyGoalContext={studyContext}
+        weeklyStudiedMinutes={currentWeeklyMinutes}
+      />
+    );
+  }
 
-  const dueCards = getCardsDue(progress.flashcards);
-  const getCurrentTopicData = () => currentTopics.find(t => t.id === activeTopic);
+  if (view === 'simulation') {
+    return (
+      <div className="max-w-6xl mx-auto p-4">
+        <button onClick={() => setView('list')} className="mb-4 text-slate-500 hover:text-slate-800 flex items-center gap-2">
+           <ArrowLeft className="w-4 h-4" /> Voltar
+        </button>
+        <SimulationHub onSelect={handleSimulationSelect} />
+      </div>
+    );
+  }
 
-  // Extract study plan goal to pass as context for question generation
-  const activePlan = progress.studyPlans.find(p => p.id === progress.activePlanId);
-  const studyGoalContext = activePlan && activePlan.category === category ? activePlan.goal : undefined;
+  if (view === 'flashcards') {
+    return (
+       <div className="max-w-4xl mx-auto p-4">
+         <button onClick={() => setView('list')} className="mb-4 text-slate-500 hover:text-slate-800 flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Voltar
+         </button>
+         <FlashcardSession 
+           cards={getFlashcardsDue()} 
+           onReview={handleFlashcardReview} 
+           onFinish={() => setView('list')} 
+         />
+       </div>
+    );
+  }
+
+  if (view === 'report') {
+    return <ReportView history={progress.history} onBack={() => setView('list')} />;
+  }
+
+  if (view === 'favorites') {
+    return (
+      <FavoritesView 
+        favorites={progress.favorites} 
+        onRemove={(id) => handleToggleFavorite({ id } as Question)} 
+        onBack={() => setView('list')} 
+      />
+    );
+  }
+
+  if (view === 'placement') {
+     return (
+       <PlacementTest 
+         category={category}
+         subCategory={subCategory}
+         onComplete={(results) => {
+            handleSimulationComplete(results);
+            setView('list');
+         }}
+       />
+     );
+  }
+
+  // DEFAULT VIEW: LIST
+  const flashcardsCount = getFlashcardsDue().length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-             <button onClick={onExit} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
-             <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 ${category === 'math' ? 'bg-indigo-600' : 'bg-emerald-600'} rounded-lg flex items-center justify-center text-white font-bold`}>
-                  {category === 'math' ? <Book className="w-4 h-4" /> : <Scale className="w-4 h-4" />}
-                </div>
-                <div>
-                  <h2 className="font-bold text-sm tracking-tight">{moduleTitle}</h2>
-                  <span className="text-[10px] text-slate-400 uppercase font-black">Módulo Ativo</span>
-                </div>
-             </div>
-          </div>
-          
-          {subCategory !== 'weekly' && view !== 'placement_intro' && view !== 'plan_setup_internal' && (
-            <div className="flex gap-1 md:gap-2 overflow-x-auto">
-              <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'bg-slate-100' : ''}`} title="Painel"><LayoutDashboard className="w-5 h-5" /></button>
-              <button onClick={() => setView('favorites')} className={`p-2 rounded-lg ${view === 'favorites' ? 'bg-slate-100' : ''}`} title="Favoritos"><Star className="w-5 h-5" /></button>
-              <button onClick={() => setView('placement')} className={`p-2 rounded-lg ${view === 'placement' ? 'bg-slate-100' : ''}`} title="Refazer Nivelamento"><GraduationCap className="w-5 h-5" /></button>
-              <button onClick={() => setView('simulations')} className={`p-2 rounded-lg ${view === 'simulations' ? 'bg-slate-100' : ''}`} title="Simulados"><Target className="w-5 h-5" /></button>
-              <button onClick={() => setView('flashcards')} className={`p-2 rounded-lg relative ${view === 'flashcards' ? 'bg-slate-100' : ''}`} title="Revisão">
-                <Brain className="w-5 h-5" />
-                {dueCards.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
-              </button>
-              <button onClick={() => setView('report')} className={`p-2 rounded-lg ${view === 'report' ? 'bg-slate-100' : ''}`} title="Relatórios"><BarChart2 className="w-5 h-5" /></button>
-            </div>
-          )}
+    <div className="max-w-6xl mx-auto px-4 py-8 animate-in fade-in">
+      {/* Header Navigation */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+        <button onClick={onExit} className="flex items-center text-slate-500 hover:text-slate-900 font-bold uppercase tracking-widest text-xs">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar ao Painel
+        </button>
+        <div className="flex gap-4">
+           <button onClick={() => setView('favorites')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-yellow-600 hover:border-yellow-200 transition-all shadow-sm">
+              <Star className="w-4 h-4" /> Favoritos ({progress.favorites.length})
+           </button>
+           <button onClick={() => setView('report')} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
+              <BarChart2 className="w-4 h-4" /> Relatórios
+           </button>
         </div>
-      </nav>
+      </div>
 
-      <main className="max-w-7xl mx-auto p-4 py-8">
-        
-        {view === 'placement_intro' && (
-          <div className="max-w-4xl mx-auto text-center py-12 animate-in fade-in duration-500">
-            <h1 className="text-3xl font-black text-slate-900 mb-4">Bem-vindo à sua Trilha</h1>
-            <p className="text-slate-500 max-w-lg mx-auto mb-12">
-              Para criarmos o plano de estudo ideal, precisamos entender seu ponto de partida. Como você prefere começar?
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-              <button 
-                onClick={handleStartFromZero}
-                className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Sprout className="w-10 h-10" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Começar do Zero</h3>
-                <p className="text-sm text-slate-500 text-center mb-6">
-                  Nunca estudei este assunto ou quero rever tudo desde a base.
-                </p>
-                <div className="mt-auto flex items-center text-sm font-bold text-emerald-600 uppercase tracking-widest">
-                  Criar Plano Básico <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </button>
-
-              <button 
-                onClick={() => setView('placement')}
-                className="group flex flex-col items-center bg-white p-8 rounded-3xl border-2 border-slate-200 hover:border-indigo-500 hover:shadow-xl transition-all duration-300 relative overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <GraduationCap className="w-10 h-10" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Teste de Nivelamento</h3>
-                <p className="text-sm text-slate-500 text-center mb-6">
-                  Já tenho algum conhecimento e quero pular conteúdos básicos.
-                </p>
-                <div className="mt-auto flex items-center text-sm font-bold text-indigo-600 uppercase tracking-widest">
-                  Fazer Avaliação <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {view === 'placement' && (
-          <PlacementTest 
-            category={category} 
-            subCategory={subCategory}
-            onComplete={handlePlacementComplete} 
-          />
-        )}
-        
-        {view === 'plan_setup_internal' && (
-          <StudyPlanSetup 
-            progress={progress} 
-            onPlanCreated={handlePlanCreatedInternal} 
-            category={category} 
-          />
-        )}
-
-        {view === 'favorites' && (
-          <FavoritesView 
-            favorites={progress.favorites}
-            onRemove={handleRemoveFavorite}
-            onBack={() => setView('dashboard')}
-          />
-        )}
-        {view === 'dashboard' && (
-          <div className="space-y-6">
-            {activePlan && activePlan.category === category && visibleTopics.length < currentTopics.length && (
-              <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center gap-3">
-                <Lock className="w-5 h-5 text-indigo-600" />
-                <div className="text-sm text-indigo-900">
-                  <span className="font-bold">Modo Focado ({activePlan.title}):</span> Exibindo apenas os tópicos presentes no seu Plano de Estudos.
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {visibleTopics.map(topic => (
-                <SkillCard 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Main Content: Topic List */}
+        <div className="md:col-span-2 space-y-6">
+           <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                 <BookOpen className="w-6 h-6 text-indigo-600" />
+                 Módulos de Estudo
+              </h2>
+              <span className="text-xs font-bold bg-slate-100 px-3 py-1 rounded-full text-slate-500">{topics.length} Tópicos</span>
+           </div>
+           
+           <div className="grid grid-cols-1 gap-4">
+              {topics.map(topic => (
+                <SkillCard
                   key={topic.id}
                   topic={topic}
-                  parentStats={progress.skills[topic.id]} 
-                  allSkills={progress.skills} 
-                  onClick={handleTopicSelect}
+                  parentStats={progress.skills[topic.id] || { 
+                    id: topic.id, name: topic.name, isParent: true, masteryProbability: 0.1, totalAttempts: 0, correctStreak: 0, averageResponseTime: 0 
+                  }}
+                  allSkills={progress.skills}
+                  onClick={handleSkillClick}
                 />
               ))}
-              {visibleTopics.length === 0 && (
-                <div className="col-span-full text-center text-gray-400 py-12">
-                  Nenhum tópico encontrado para este módulo ou plano de estudos.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        {view === 'practice' && activeTopic && (
-          <PracticeSession 
-            category={category}
-            topicId={activeTopic}
-            topicName={getCurrentTopicData()?.name || ''}
-            topicSubSkills={getCurrentTopicData()?.subSkills || []}
-            userSkills={progress.skills}
-            onCompleteQuestion={handleInteractionComplete}
-            onBack={() => setView('dashboard')}
-            onToggleFavorite={handleToggleFavorite}
-            isFavorite={isFavorite}
-            studyGoalContext={studyGoalContext} // PASSING CONTEXT HERE
-          />
-        )}
-        {view === 'simulations' && <SimulationHub onSelect={handleSimulationStart} />}
-        {view === 'simulation_session' && activeSimulation && (
-          <SimulationSession 
-            config={activeSimulation} 
-            category={category}
-            availableTopics={customSimulationTopics || currentTopics}
-            userSkills={progress.skills} 
-            onComplete={handleSimulationComplete} 
-            onCancel={() => subCategory === 'weekly' ? onExit() : setView('simulations')}
-            onUpdateSkill={handleInteractionComplete} 
-            onToggleFavorite={handleToggleFavorite} 
-            isFavorite={isFavorite}
-            studyGoalContext={studyGoalContext} // PASSING CONTEXT HERE
-            weeklyStudiedMinutes={currentWeeklyMinutes} // Passing the time to the session
-          />
-        )}
-        {view === 'flashcards' && <FlashcardSession cards={dueCards} onReview={handleCardReview} onFinish={() => setView('dashboard')} />}
-        {view === 'report' && <ReportView history={progress.history} onBack={() => setView('dashboard')} />}
-      </main>
+           </div>
+        </div>
+
+        {/* Sidebar: Actions */}
+        <div className="space-y-6">
+           {/* Flashcards CTA */}
+           <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+              <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
+                 <Brain className="w-5 h-5" /> Revisão Espaçada
+              </h3>
+              <p className="text-indigo-100 text-sm mb-6">
+                 {flashcardsCount > 0 
+                   ? `Você tem ${flashcardsCount} cartões para revisar hoje.` 
+                   : "Tudo em dia! Volte amanhã para mais revisões."}
+              </p>
+              <button 
+                onClick={() => setView('flashcards')}
+                disabled={flashcardsCount === 0}
+                className="w-full py-3 bg-white text-indigo-900 font-bold rounded-xl hover:bg-indigo-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              >
+                 {flashcardsCount > 0 ? "Iniciar Revisão" : "Sem Revisões"}
+              </button>
+           </div>
+
+           {/* Simulations CTA */}
+           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
+                 <Target className="w-5 h-5 text-red-500" /> Simulados
+              </h3>
+              <p className="text-slate-500 text-sm mb-6">
+                 Teste seus conhecimentos em provas completas estilo vestibular ou concurso.
+              </p>
+              <button 
+                onClick={() => setView('simulation')}
+                className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg"
+              >
+                 Abrir Central de Provas
+              </button>
+           </div>
+
+           {/* Placement CTA */}
+           {subCategory !== 'weekly' && (
+              <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 shadow-sm">
+                 <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2 mb-2">
+                    <Trophy className="w-5 h-5 text-emerald-600" /> Nivelamento
+                 </h3>
+                 <p className="text-emerald-700 text-sm mb-6">
+                    Faça um teste rápido para calibrar a dificuldade das questões.
+                 </p>
+                 <button 
+                   onClick={() => setView('placement')}
+                   className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg"
+                 >
+                    Fazer Teste
+                 </button>
+              </div>
+           )}
+        </div>
+      </div>
     </div>
   );
 };
