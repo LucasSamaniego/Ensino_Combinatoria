@@ -1,17 +1,16 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../services/api';
 import { UserProgress } from '../types';
-import { ShieldCheck, UserCheck, Book, Save, Loader2, Search, UserPlus } from 'lucide-react';
+import { ShieldCheck, UserCheck, Book, Save, Loader2, Search, UserPlus, CloudLightning } from 'lucide-react';
 import { loadUserProgress, saveUserProgress, getEmptyProgress, findUserIdByEmail, savePendingPermission } from '../services/storageService';
 
 const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const { user } = useAuth();
-  const [targetInput, setTargetInput] = useState(''); // Can be Email or ID
+  const [targetInput, setTargetInput] = useState('');
   const [targetUserProgress, setTargetUserProgress] = useState<UserProgress | null>(null);
-  const [targetUserId, setTargetUserId] = useState(''); // Resolved ID or 'PENDING_USER'
-  const [targetUserEmail, setTargetUserEmail] = useState(''); // Store email for pending logic
+  const [targetUserId, setTargetUserId] = useState('');
+  const [targetUserEmail, setTargetUserEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [isPendingMode, setIsPendingMode] = useState(false);
@@ -28,16 +27,13 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     let foundId = targetInput.trim();
     let isEmail = foundId.includes('@');
 
-    // 1. Try to find existing user
     if (isEmail) {
        const resolvedId = await findUserIdByEmail(foundId);
        if (resolvedId) {
          foundId = resolvedId;
-         setMsg(`Usuário encontrado: ${resolvedId}`);
+         setMsg(`Usuário encontrado na base: ${resolvedId}`);
        } else {
-         // USER NOT FOUND CASE
-         setMsg('Usuário não registrado no sistema.');
-         // Enable Pre-Auth Mode
+         setMsg('Usuário não registrado no banco de dados.');
          setTargetUserId('PENDING_USER');
          setTargetUserEmail(targetInput.trim());
          setIsPendingMode(true);
@@ -47,7 +43,6 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
        }
     }
 
-    // 2. Load Existing User
     try {
       const data = await loadUserProgress(foundId);
       setTargetUserProgress(data);
@@ -75,13 +70,11 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
     setLoading(true);
 
     if (isPendingMode && targetUserId === 'PENDING_USER') {
-       // Save to Pending Permissions
        savePendingPermission(targetUserEmail, targetUserProgress.assignedCourses);
-       setMsg(`Sucesso! As permissões foram salvas e serão aplicadas automaticamente quando ${targetUserEmail} fizer login.`);
+       setMsg(`Sucesso! Pré-autorização salva localmente para ${targetUserEmail}.`);
     } else {
-       // Save to Existing User
        await saveUserProgress(targetUserId, targetUserProgress);
-       setMsg('Permissões atualizadas com sucesso para o usuário existente!');
+       setMsg('Permissões sincronizadas na nuvem com sucesso!');
     }
     
     setLoading(false);
@@ -95,7 +88,7 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
              <ShieldCheck className="w-8 h-8 text-emerald-400" />
              <div>
                <h1 className="text-xl font-bold">Painel Administrativo</h1>
-               <p className="text-slate-400 text-xs">Gestão de Acesso e Matrículas</p>
+               <p className="text-slate-400 text-xs">Gestão Global de Acesso (Cloud Sync)</p>
              </div>
           </div>
           <button onClick={onExit} className="text-sm hover:underline text-slate-300">Sair</button>
@@ -123,7 +116,8 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
              </button>
            </div>
 
-           {msg && <div className={`p-4 mb-6 rounded-lg text-sm font-bold ${msg.includes('Sucesso') || msg.includes('sucesso') || msg.includes('encontrado') ? 'bg-green-100 text-green-800' : isPendingMode ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+           {msg && <div className={`p-4 mb-6 rounded-lg text-sm font-bold flex items-center gap-2 ${msg.includes('Sucesso') || msg.includes('sucesso') || msg.includes('encontrado') ? 'bg-green-100 text-green-800' : isPendingMode ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+             {msg.includes('nuvem') && <CloudLightning className="w-4 h-4" />}
              {msg}
            </div>}
 
@@ -134,7 +128,7 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                      {isPendingMode ? (
                         <>
                            <UserPlus className="w-5 h-5 text-amber-500" /> 
-                           <span className="font-bold text-amber-700">Modo Pré-Autorização (Novo Aluno)</span>
+                           <span className="font-bold text-amber-700">Modo Pré-Autorização</span>
                         </>
                      ) : (
                         <><span>ID: {targetUserId}</span></>
@@ -145,7 +139,7 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                 
                 {isPendingMode && (
                    <p className="text-sm text-slate-500">
-                      Este usuário ainda não entrou na plataforma. Defina os cursos abaixo e eles serão liberados <b>automaticamente</b> no primeiro login.
+                      Este usuário ainda não entrou na plataforma. As permissões serão aplicadas no primeiro login.
                    </p>
                 )}
 
@@ -194,7 +188,7 @@ const AdminDashboard: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg"
                    >
                      {loading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5" />}
-                     {isPendingMode ? 'Salvar Pré-Autorização' : 'Salvar Alterações'}
+                     {isPendingMode ? 'Salvar Pré-Autorização' : 'Sincronizar na Nuvem'}
                    </button>
                 </div>
              </div>

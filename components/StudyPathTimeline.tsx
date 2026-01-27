@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { StudyPlan, StudyWeek } from '../types';
-import { Calendar, CheckCircle2, Circle, Clock, MapPin, Flag, Play, ChevronDown, ChevronUp, Lock, Download, FileDown, Hourglass } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Clock, MapPin, Flag, Play, ChevronDown, ChevronUp, Lock, Download, FileDown, Hourglass, ArrowRight } from 'lucide-react';
 
 // Declare html2pdf on window
 declare global {
@@ -24,10 +24,11 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // Alteração: Não bloqueia mais semanas futuras
   const getWeekStatus = (index: number) => {
     if (index < currentWeekIndex) return 'completed';
     if (index === currentWeekIndex) return 'active';
-    return 'locked';
+    return 'upcoming'; // Substitui 'locked' por 'upcoming'
   };
 
   const calculateProgress = () => {
@@ -142,18 +143,18 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
               return (
                 <div 
                   key={idx} 
-                  className={`relative z-10 transition-all duration-300 ${status === 'active' ? 'transform scale-[1.02]' : 'opacity-80 hover:opacity-100'}`}
+                  className={`relative z-10 transition-all duration-300 ${status === 'active' ? 'transform scale-[1.02]' : ''}`}
                 >
                   {/* Marcador da Linha do Tempo */}
                   <div className={`absolute left-0 top-6 w-14 flex justify-center`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center border-4 z-10 ${
                       status === 'completed' ? 'bg-green-500 border-green-100 text-white' :
                       status === 'active' ? 'bg-indigo-600 border-indigo-100 text-white shadow-lg shadow-indigo-200' :
-                      'bg-white border-slate-200 text-slate-300'
+                      'bg-white border-slate-200 text-slate-400'
                     }`}>
                       {status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> :
                       status === 'active' ? <div className="w-2 h-2 bg-white rounded-full animate-pulse" /> :
-                      <Lock className="w-3 h-3" />
+                      <Circle className="w-3 h-3" />
                       }
                     </div>
                   </div>
@@ -190,17 +191,17 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                         </h4>
                         
                         {/* Weekly Time Tracker */}
-                        {status === 'active' && (
+                        {(status === 'active' || status === 'completed') && week.studiedMinutes ? (
                           <div className="mt-3 flex items-center gap-3">
                              <div className="flex-grow max-w-[200px] h-2 bg-slate-200 rounded-full overflow-hidden">
                                 <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${percentStudied}%` }}></div>
                              </div>
                              <div className="text-xs font-bold text-slate-500 flex items-center gap-1">
                                <Hourglass className="w-3 h-3" />
-                               {formatStudiedTime(week.studiedMinutes)} estudados
+                               {formatStudiedTime(week.studiedMinutes)}
                              </div>
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="text-slate-400 html2pdf__ignore ml-4">
@@ -221,17 +222,20 @@ const StudyPathTimeline: React.FC<StudyPathTimelineProps> = ({ plan, onStartWeek
                           ))}
                         </ul>
 
-                        {status === 'active' && (
-                          <div className="mt-4 pt-4 border-t border-slate-100 html2pdf__ignore">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); onStartWeek(week.topicsToStudy, week.theme); }}
-                              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-200"
-                            >
-                              <Play className="w-4 h-4 fill-white" />
-                              Começar Estudo da Semana
-                            </button>
-                          </div>
-                        )}
+                        {/* Alteração: Botão de estudo disponível para TODAS as semanas */}
+                        <div className="mt-4 pt-4 border-t border-slate-100 html2pdf__ignore">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onStartWeek(week.topicsToStudy, week.theme); }}
+                            className={`w-full font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg ${
+                              status === 'active' 
+                                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200' 
+                                : 'bg-white border-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50'
+                            }`}
+                          >
+                            <Play className={`w-4 h-4 ${status === 'active' ? 'fill-white' : 'fill-indigo-600'}`} />
+                            {status === 'completed' ? 'Revisar Conteúdo da Semana' : 'Acessar Material da Semana'}
+                          </button>
+                        </div>
                         
                         {/* Summary of study time for completed weeks */}
                         {status === 'completed' && (
