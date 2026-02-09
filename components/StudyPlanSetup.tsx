@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StudyPlan, UserProgress, SkillState, Question, Difficulty, TopicId } from '../types';
 import { generateStudyPath, calculateStudyEffort, analyzeSyllabus, generateProblem } from '../services/geminiService';
 import { BASIC_MATH_TOPICS, COMBINATORICS_TOPICS, CONCURSOS_TOPICS, GENERAL_MATH_TOPICS, PORTUGUESE_TOPICS } from '../constants';
-import { Calendar, Clock, Target, Loader2, ArrowRight, GraduationCap, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool, BrainCircuit, XCircle, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, Target, Loader2, ArrowRight, Gavel, Award, School, Check, Zap, AlertTriangle, Layers, Building2, UploadCloud, FileText, PenTool, BrainCircuit, XCircle, CheckCircle } from 'lucide-react';
 import MathRenderer from './MathRenderer';
 
 interface StudyPlanSetupProps {
@@ -15,30 +15,25 @@ interface StudyPlanSetupProps {
 type ObjectiveType = 'school' | 'contest' | 'deep_dive' | null;
 
 const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated, category }) => {
-  // Steps: Config -> Topics -> Strategy -> Generating
   const [step, setStep] = useState<'config' | 'topics' | 'strategy' | 'generating'>('config');
 
-  // Form Data
   const [planTitle, setPlanTitle] = useState('');
   const [objectiveType, setObjectiveType] = useState<ObjectiveType>(null);
   const [specificGoal, setSpecificGoal] = useState('');
   const [deadline, setDeadline] = useState('');
   const [userDailyMinutes, setUserDailyMinutes] = useState(60);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [knownTopics, setKnownTopics] = useState<string[]>([]); // New: Topics verified as known
+  const [knownTopics, setKnownTopics] = useState<string[]>([]);
   
-  // Concursos Specific Data
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
   const [isAnalyzingSyllabus, setIsAnalyzingSyllabus] = useState(false);
   const [syllabusSummary, setSyllabusSummary] = useState<string>('');
   
-  // AI Recommendation Data
   const [recommendedMinutes, setRecommendedMinutes] = useState(0);
   const [recommendationReason, setRecommendationReason] = useState('');
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
-  // Placement Modal State
   const [placementModalOpen, setPlacementModalOpen] = useState(false);
   const [placementTopic, setPlacementTopic] = useState('');
   const [placementQuestions, setPlacementQuestions] = useState<Question[]>([]);
@@ -49,23 +44,19 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Available Topics based on Category - Now includes GENERAL_MATH_TOPICS and PORTUGUESE_TOPICS
   const availableTopics = category === 'math' 
     ? [...BASIC_MATH_TOPICS, ...GENERAL_MATH_TOPICS, ...COMBINATORICS_TOPICS] 
     : (category === 'portuguese' ? PORTUGUESE_TOPICS : CONCURSOS_TOPICS);
 
-  // Initial setup based on category
   useEffect(() => {
-    // Topics selection default (Select All initially, but wait if upload happens)
     if (availableTopics.length > 0 && selectedTopics.length === 0 && !syllabusFile) {
       setSelectedTopics(availableTopics.map(t => t.name));
     }
 
-    // Category specific Logic
     if (category === 'concursos') {
-      setObjectiveType('contest'); // Auto-set contest for concursos module
+      setObjectiveType('contest');
     } else {
-      setObjectiveType(null); // Reset for math and portuguese
+      setObjectiveType(null);
     }
   }, [category, syllabusFile]);
 
@@ -95,7 +86,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     }
   };
 
-  // --- PLACEMENT LOGIC ---
   const startPlacementTest = async (topicName: string) => {
     setPlacementTopic(topicName);
     setPlacementModalOpen(true);
@@ -106,12 +96,11 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     setPlacementCompleted(false);
 
     try {
-      // Generate 3 questions for this topic
       const promises = [1, 2, 3].map(() => 
         generateProblem(
           category,
           topicName,
-          'placement_check' as TopicId, // Dummy ID
+          'placement_check' as TopicId,
           'placement_check',
           topicName,
           Difficulty.INTERMEDIATE,
@@ -141,11 +130,9 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     if (placementCurrentIndex < 2) {
       setPlacementCurrentIndex(prev => prev + 1);
     } else {
-      // Finished
       setPlacementCompleted(true);
       const finalScore = isCorrect ? placementScore + 1 : placementScore;
       
-      // Pass if 2 out of 3 correct
       if (finalScore >= 2) {
         if (!knownTopics.includes(placementTopic)) {
           setKnownTopics([...knownTopics, placementTopic]);
@@ -158,30 +145,26 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     setPlacementModalOpen(false);
   };
 
-  // --- SYLLABUS UPLOAD HANDLER ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSyllabusFile(file);
       
-      // Auto-set title if empty
       if (!planTitle) {
         setPlanTitle(file.name.replace('.pdf', '').replace('.txt', ''));
       }
 
-      // Automatic Analysis
       setIsAnalyzingSyllabus(true);
       try {
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64String = reader.result as string;
-          // Extract base64 part (remove data:application/pdf;base64,)
           const base64Data = base64String.split(',')[1];
           
           const analysis = await analyzeSyllabus(base64Data, file.type);
           
           if (analysis.matchedTopics.length > 0) {
-             setSelectedTopics(analysis.matchedTopics); // Set strict matching
+             setSelectedTopics(analysis.matchedTopics);
              setSyllabusSummary(analysis.summary);
           } else {
              setSyllabusSummary("Nenhum tópico correspondente encontrado. O plano será genérico.");
@@ -220,7 +203,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
   const toggleTopic = (topicName: string) => {
     if (selectedTopics.includes(topicName)) {
       setSelectedTopics(selectedTopics.filter(t => t !== topicName));
-      // Remove from known if unselected
       if (knownTopics.includes(topicName)) {
         setKnownTopics(knownTopics.filter(t => t !== topicName));
       }
@@ -245,13 +227,12 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     }
 
     setLoadingAnalysis(true);
-    // Move to strategy step, triggering analysis with KNOWN TOPICS
     const effort = await calculateStudyEffort(
       getWeaknesses(),
       getFullGoalDescription(),
       deadline,
       selectedTopics,
-      knownTopics // PASSING KNOWN TOPICS TO AI
+      knownTopics
     );
 
     setRecommendedMinutes(effort.recommendedMinutes);
@@ -271,7 +252,7 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
       selectedTopics, 
       category, 
       syllabusSummary,
-      knownTopics // PASSING KNOWN TOPICS TO AI
+      knownTopics
     );
 
     const newPlan: StudyPlan = {
@@ -289,11 +270,8 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     onPlanCreated(newPlan);
   };
 
-  // 1. Goal Configuration Step
   const renderConfigStep = () => (
     <form onSubmit={handleConfigSubmit} className="space-y-8 animate-in fade-in">
-      
-      {/* Plan Name Input */}
       <div className="space-y-2">
         <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
           Nome do Plano
@@ -311,7 +289,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       </div>
 
-      {/* MATH & PORTUGUESE MODULE: Objective Type Selection */}
       {(category === 'math' || category === 'portuguese') && (
         <div className="space-y-4">
           <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -341,7 +318,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* MATH & PORTUGUESE MODULE: Specific Goal Dropdown */}
       {(category === 'math' || category === 'portuguese') && objectiveType && (
         <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -360,7 +336,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* CONCURSOS MODULE: Board Selection & Syllabus Upload */}
       {category === 'concursos' && (
         <div className="space-y-6 animate-in slide-in-from-top-4">
           <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
@@ -372,7 +347,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
              </p>
           </div>
 
-          {/* Syllabus Upload Section - The "Killer Feature" */}
           <div className="border-2 border-dashed border-indigo-200 rounded-2xl p-6 bg-indigo-50/50 hover:bg-indigo-50 transition-colors text-center relative group">
              <input 
                type="file" 
@@ -438,7 +412,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
         </div>
       )}
 
-      {/* Deadline (Common for all) */}
       {(specificGoal || category === 'concursos') && (
         <div className="space-y-4 animate-in slide-in-from-top-4">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -483,7 +456,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     </form>
   );
 
-  // 2. Topics Selection & Placement Check Step
   const renderTopicsStep = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8">
       <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
@@ -525,7 +497,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
                   <span className={`text-sm font-medium ${isSelected ? 'text-indigo-900' : 'text-slate-600'}`}>{topic.name}</span>
                 </div>
 
-                {/* Placement Button - Only if selected */}
                 {isSelected && (
                   <button
                     onClick={(e) => { e.stopPropagation(); startPlacementTest(topic.name); }}
@@ -629,14 +600,12 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
     </div>
   );
 
-  // --- PLACEMENT MODAL ---
   const renderPlacementModal = () => {
     if (!placementModalOpen) return null;
 
     return (
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-          {/* Header */}
           <div className="bg-indigo-900 p-6 text-white flex justify-between items-start">
             <div>
               <h3 className="text-lg font-bold">Validar Conhecimento</h3>
@@ -645,7 +614,6 @@ const StudyPlanSetup: React.FC<StudyPlanSetupProps> = ({ progress, onPlanCreated
             <button onClick={closePlacementModal} className="text-indigo-300 hover:text-white"><XCircle className="w-6 h-6"/></button>
           </div>
 
-          {/* Content */}
           <div className="p-6 flex-grow overflow-y-auto">
             {placementLoading ? (
               <div className="py-12 flex flex-col items-center text-slate-400">

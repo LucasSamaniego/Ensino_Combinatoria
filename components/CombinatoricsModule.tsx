@@ -16,14 +16,11 @@ import {
   COMBINATORICS_TOPICS, 
   CONCURSOS_TOPICS,
   GENERAL_MATH_TOPICS,
-  PORTUGUESE_TOPICS // Import Portuguese topics
+  PORTUGUESE_TOPICS 
 } from '../constants';
 import { 
   updateHierarchicalKnowledge 
 } from '../services/tracingService';
-import { 
-  generateFlashcards 
-} from '../services/geminiService';
 import { 
   getCardsDue, 
   calculateNextReview, 
@@ -46,10 +43,10 @@ import {
   BarChart2, 
   Star, 
   ArrowLeft, 
-  Brain, 
-  Dumbbell 
+  Brain
 } from 'lucide-react';
 
+// Explicitly define the props to match the types used in children
 interface CombinatoricsModuleProps {
   category: 'math' | 'concursos' | 'portuguese';
   subCategory?: string;
@@ -75,7 +72,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const [currentWeeklyMinutes, setCurrentWeeklyMinutes] = useState(0);
   const [customSimulationTopics, setCustomSimulationTopics] = useState<{id: TopicId, name: string}[]>([]);
   
-  // Use initialProgress directly
   const progress = initialProgress;
 
   // Determine which topics to show based on category/subCategory
@@ -104,7 +100,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
 
   const topics = getTopics();
 
-  // Effect to handle 'weekly' subCategory entry
   useEffect(() => {
     if (subCategory === 'weekly') {
       startWeeklySession();
@@ -114,7 +109,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   const startWeeklySession = (currentData?: UserProgress) => {
      const dataToUse = currentData || progress;
      
-     // Calculate accumulated time for this specific week
      let minutesStudied = 0;
      const activePlan = dataToUse.studyPlans.find(p => p.id === dataToUse.activePlanId);
      if (activePlan && weeklyTheme) {
@@ -134,14 +128,10 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
        difficulty: Difficulty.INTERMEDIATE 
      };
      
-     // Robust Mapping: Try to find existing topic ID from name (Fuzzy Match)
      const topicsObjects = (weeklyTopics || []).map((tName, i) => {
         const normalizedInput = tName.toLowerCase().trim();
-        
-        // 1. Exact Match
         let found = TOPICS_DATA.find(ct => ct.name.toLowerCase() === normalizedInput);
         
-        // 2. Partial Match
         if (!found) {
            found = TOPICS_DATA.find(ct => 
              ct.name.toLowerCase().includes(normalizedInput) || 
@@ -149,7 +139,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
            );
         }
 
-        // 3. Keyword Match
         if (!found) {
            if (normalizedInput.includes("adm")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_ADMINISTRATIVO);
            if (normalizedInput.includes("const")) found = TOPICS_DATA.find(ct => ct.id === TopicId.DIR_CONSTITUCIONAL);
@@ -181,17 +170,14 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handlePracticeComplete = (interaction: Interaction) => {
-    // 1. Update BKT
     const updatedSkills = updateHierarchicalKnowledge(
       progress.skills,
       interaction,
       { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 }
     );
 
-    // 2. Add to history
     const updatedHistory = [...progress.history, interaction];
 
-    // 3. Update Progress
     const newProgress = {
       ...progress,
       skills: updatedSkills,
@@ -202,14 +188,12 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handleUpdateSkill = (interaction: Interaction) => {
-    // Similar to handlePracticeComplete but for simulations (doesn't exit view)
     const updatedSkills = updateHierarchicalKnowledge(
       progress.skills,
       interaction,
       { p_init: 0.1, p_transit: 0.15, p_slip: 0.1, p_guess: 0.2 }
     );
 
-    // Update time tracking if in weekly mode
     let updatedPlans = progress.studyPlans;
     if (subCategory === 'weekly' && weeklyTheme) {
       updatedPlans = progress.studyPlans.map(plan => {
@@ -235,10 +219,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
   };
 
   const handleSimulationComplete = (results: Interaction[]) => {
-    // Batch update history
     const updatedHistory = [...progress.history, ...results];
     
-    // Batch update skills (iterate)
     let currentSkills = { ...progress.skills };
     results.forEach(interaction => {
       currentSkills = updateHierarchicalKnowledge(
@@ -254,9 +236,8 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
       history: updatedHistory
     });
 
-    // Go back to list
     if (subCategory === 'weekly') {
-      onExit(); // Go back to main timeline if weekly done
+      onExit(); 
     } else {
       setView('list');
     }
@@ -391,12 +372,10 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
      );
   }
 
-  // DEFAULT VIEW: LIST
   const flashcardsCount = getFlashcardsDue().length;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 animate-in fade-in">
-      {/* Header Navigation */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
         <button onClick={onExit} className="flex items-center text-slate-500 hover:text-slate-900 font-bold uppercase tracking-widest text-xs">
           <ArrowLeft className="w-4 h-4 mr-2" /> Voltar ao Painel
@@ -412,7 +391,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Main Content: Topic List */}
         <div className="md:col-span-2 space-y-6">
            <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
@@ -437,9 +415,7 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
            </div>
         </div>
 
-        {/* Sidebar: Actions */}
         <div className="space-y-6">
-           {/* Flashcards CTA */}
            <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
               <h3 className="text-lg font-bold flex items-center gap-2 mb-2">
@@ -459,7 +435,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
               </button>
            </div>
 
-           {/* Simulations CTA */}
            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
                  <Target className="w-5 h-5 text-red-500" /> Simulados
@@ -475,7 +450,6 @@ const CombinatoricsModule: React.FC<CombinatoricsModuleProps> = ({
               </button>
            </div>
 
-           {/* Placement CTA */}
            {subCategory !== 'weekly' && (
               <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 shadow-sm">
                  <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2 mb-2">
