@@ -9,8 +9,13 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     base: './',
     server: {
-      host: true, // Listen on all addresses (0.0.0.0)
+      host: true, // Isso libera o acesso para IPs externos (0.0.0.0)
       port: 5173,
+      allowedHosts: true // Permite qualquer host (útil para VPS)
+    },
+    preview: {
+      host: true, // Libera o preview para IPs externos
+      allowedHosts: true
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || env.API_KEY || ""),

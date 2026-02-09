@@ -8,10 +8,10 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "npx vite build",
+    "dev": "vite --host",
+    "build": "vite build",
     "type-check": "tsc",
-    "preview": "vite preview",
+    "preview": "vite preview --host",
     "reinstall": "rm -rf node_modules package-lock.json && npm install"
   },
   "dependencies": {
